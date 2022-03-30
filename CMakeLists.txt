@@ -47,6 +47,9 @@ if ((NOT LEVELDB_INCLUDE_PATH) OR (NOT LEVELDB_LIB))
     message(FATAL_ERROR "Fail to find leveldb")
 endif()
 
+set(BRPC_INCLUDE_PATH "/home/haiqi/incubator-brpc/output/include")
+set(BRPC_LIB "/home/haiqi/incubator-brpc/output/lib/libbrpc.so")
+
 find_path(GFLAGS_INCLUDE_PATH NAMES gflags/gflags.h)
 find_library(GFLAGS_LIB NAMES gflags)
 if ((NOT GFLAGS_INCLUDE_PATH) OR (NOT GFLAGS_LIB))
