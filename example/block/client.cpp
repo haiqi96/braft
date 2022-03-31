@@ -24,7 +24,7 @@
 DEFINE_bool(log_each_request, false, "Print log for each request");
 DEFINE_bool(use_bthread, false, "Use bthread to send requests");
 DEFINE_int32(block_size, 64 * 1024 * 1024u, "Size of block");
-DEFINE_int32(request_size, 1024, "Size of each requst");
+DEFINE_int32(request_size, 16, "Size of each requst");
 DEFINE_int32(thread_num, 1, "Number of threads sending requests");
 DEFINE_int32(timeout_ms, 500, "Timeout for each request");
 DEFINE_int32(write_percentage, 100, "Percentage of fetch_add");
@@ -34,6 +34,7 @@ DEFINE_string(group, "Block", "Id of the replication group");
 bvar::LatencyRecorder g_latency_recorder("block_client");
 
 static void* sender(void* arg) {
+    size_t offset = 0;
     while (!brpc::IsAskedToQuit()) {
         braft::PeerId leader;
         // Select leader of the target group from RouteTable
@@ -65,15 +66,22 @@ static void* sender(void* arg) {
         // Randomly select which request we want send;
         example::BlockRequest request;
         example::BlockResponse response;
-        request.set_offset(butil::fast_rand_less_than(
-                            FLAGS_block_size - FLAGS_request_size));
+        request.set_offset(offset);
+        bool isread = false;
         const char* op = NULL;
         if (butil::fast_rand_less_than(100) < (size_t)FLAGS_write_percentage) {
             op = "write";
             cntl.request_attachment().resize(FLAGS_request_size, 'a');
+            //std::cout << cntl.request_attachment() << std::endl;
             stub.write(&cntl, &request, &response, NULL);
+            offset = offset + FLAGS_request_size;
         } else {
             op = "read";
+            isread = true;
+            if(offset == 0) {
+                continue;
+            }
+            request.set_offset(offset - FLAGS_request_size);
             request.set_size(FLAGS_request_size);
             stub.read(&cntl, &request, &response, NULL);
         }
@@ -96,6 +104,15 @@ static void* sender(void* arg) {
         }
         g_latency_recorder << cntl.latency_us();
         if (FLAGS_log_each_request) {
+            if(isread){
+                //https://github.com/apache/incubator-brpc/blob/master/src/butil/iobuf.h
+                std::string response_attachment_str = cntl.response_attachment().to_string();
+                printf("request length is %lu\n", cntl.response_attachment().size());
+                // char * strobj = (char*) malloc (cntl.response_attachment().size() + 1);
+                // cntl.response_attachment().copy_to(strobj, cntl.response_attachment().size());
+                // strobj[cntl.response_attachment().size() + 1] = '\0';
+                std::cout << "String is " << response_attachment_str << "\n";
+            }
             LOG(INFO) << "Received response from " << leader
                       << " op=" << op
                       << " offset=" << request.offset()

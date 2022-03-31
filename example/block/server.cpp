@@ -25,7 +25,7 @@
 
 DEFINE_bool(check_term, true, "Check if the leader changed to another term");
 DEFINE_bool(disable_cli, false, "Don't allow raft_cli access this node");
-DEFINE_bool(log_applied_task, false, "Print notice log when a task is applied");
+DEFINE_bool(log_applied_task, true, "Print notice log when a task is applied");
 DEFINE_int32(election_timeout_ms, 5000, 
             "Start election in such milliseconds if disconnect with the leader");
 DEFINE_int32(port, 8200, "Listen port of this peer");
@@ -144,6 +144,8 @@ public:
         log.append(*data);
         // Apply this log as a braft::Task
         braft::Task task;
+        //std::string request_log_str = log.to_string();
+        //std::cout << "Request Log is " << request_log_str << std::endl;
         task.data = &log;
         // This callback would be iovoked when the task actually excuted or
         // fail
@@ -171,7 +173,7 @@ public:
             response->set_success(false);
             return;
         }
-
+        PLOG(INFO) << "HANDLE READ REQUEST with offset " << request->offset() << " && size "  << request->size();
         // This is the leader and is up-to-date. It's safe to respond client
         scoped_fd fd = get_fd();
         butil::IOPortal portal;
@@ -260,6 +262,7 @@ friend class BlockClosure;
             braft::AsyncClosureGuard closure_guard(iter.done());
             butil::IOBuf data;
             off_t offset = 0;
+            // Haiqi: this is an iter could be done by other master?
             if (iter.done()) {
                 // This task is applied by this node, get value from this
                 // closure to avoid additional parsing.
@@ -271,6 +274,8 @@ friend class BlockClosure;
                 // Have to parse BlockRequest from this log.
                 uint32_t meta_size = 0;
                 butil::IOBuf saved_log = iter.data();
+
+                // Haiqi: a good example of cutting the data of log
                 saved_log.cutn(&meta_size, sizeof(uint32_t));
                 // Remember that meta_size is in network order which hould be
                 // covert to host order

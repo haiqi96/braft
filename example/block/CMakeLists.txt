@@ -19,6 +19,9 @@ if (NOT PROTOBUF_PROTOC_EXECUTABLE)
     set (PROTOBUF_PROTOC_EXECUTABLE "${PROTO_LIB_DIR}/../bin/protoc")
 endif()
 
+set(BRPC_INCLUDE_PATH "/home/haiqi/incubator-brpc/output/include")
+set(BRPC_LIB "/home/haiqi/incubator-brpc/output/lib/libbrpc.so")
+
 protobuf_generate_cpp(PROTO_SRC PROTO_HEADER block.proto)
 # include PROTO_HEADER
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
