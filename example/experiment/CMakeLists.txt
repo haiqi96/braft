@@ -22,7 +22,7 @@ endif()
 set(BRPC_INCLUDE_PATH "/home/haiqi/incubator-brpc/output/include")
 set(BRPC_LIB "/home/haiqi/incubator-brpc/output/lib/libbrpc.so")
 
-protobuf_generate_cpp(PROTO_SRC PROTO_HEADER counter.proto)
+protobuf_generate_cpp(PROTO_SRC PROTO_HEADER keyvalue.proto)
 # include PROTO_HEADER
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 

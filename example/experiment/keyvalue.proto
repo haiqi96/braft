@@ -1,0 +1,32 @@
+syntax="proto2";
+package example;
+option cc_generic_services = true;
+
+message Snapshot {
+    required int64 value = 1;
+};
+
+message InsertRequest {
+    required string key = 1;
+    required string value = 2;
+};
+
+message GetRequest {
+    required string key = 1;
+};
+
+message InsertResponse {
+    required bool success = 1;
+    optional string redirect = 2;
+};
+
+message GetResponse {
+    required bool success = 1;
+    optional string value = 2;
+    optional string redirect = 3;
+};
+
+service KeyValueService {
+    rpc insert(InsertRequest) returns (InsertResponse);
+    rpc get(GetRequest) returns (GetResponse);
+};

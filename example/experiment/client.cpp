@@ -19,7 +19,7 @@
 #include <braft/raft.h>
 #include <braft/util.h>
 #include <braft/route_table.h>
-#include "counter.pb.h"
+#include "keyvalue.pb.h"
 
 DEFINE_bool(log_each_request, false, "Print log for each request");
 DEFINE_bool(use_bthread, false, "Use bthread to send requests");
@@ -28,8 +28,6 @@ DEFINE_int64(added_by, 1, "Num added to each peer");
 DEFINE_int32(thread_num, 1, "Number of threads sending requests");
 DEFINE_int32(timeout_ms, 1000, "Timeout for each request");
 DEFINE_string(conf, "", "Configuration of the raft group");
-DEFINE_string(group, "Counter", "Id of the replication group");
-DEFINE_string(group, "Counter", "Id of the replication group");
 DEFINE_string(group, "Counter", "Id of the replication group");
 
 bvar::LatencyRecorder g_latency_recorder("counter_client");
@@ -64,51 +62,89 @@ static void *sender(void *arg)
             bthread_usleep(FLAGS_timeout_ms * 1000L);
             continue;
         }
-        example::CounterService_Stub stub(&channel);
+        example::KeyValueService_Stub stub(&channel);
 
         brpc::Controller cntl;
         cntl.set_timeout_ms(FLAGS_timeout_ms);
         // Randomly select which request we want send;
-        example::CounterResponse response;
 
         if (butil::fast_rand_less_than(100) < (size_t)FLAGS_add_percentage)
         {
-            example::FetchAddRequest request;
-            request.set_value(FLAGS_added_by);
-            stub.fetch_add(&cntl, &request, &response, NULL);
+            example::InsertRequest request;
+            example::InsertResponse response;
+
+            request.set_key("test_key");
+            request.set_value("test_value");
+            stub.insert(&cntl, &request, &response, NULL);
+
+            if (cntl.Failed())
+            {
+                LOG(WARNING) << "Fail to send request to " << leader
+                             << " : " << cntl.ErrorText();
+                // Clear leadership since this RPC failed.
+                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
+                bthread_usleep(FLAGS_timeout_ms * 1000L);
+                continue;
+            }
+
+            if (!response.success())
+            {
+                LOG(WARNING) << "Fail to send request to " << leader
+                             << ", redirecting to "
+                             << (response.has_redirect()
+                                     ? response.redirect()
+                                     : "nowhere");
+                // Update route table since we have redirect information
+                braft::rtb::update_leader(FLAGS_group, response.redirect());
+                continue;
+            }
+
+            g_latency_recorder << cntl.latency_us();
+            if (FLAGS_log_each_request)
+            {
+                LOG(INFO) << "Received response from " << leader
+                          << ", insert successfully";
+                bthread_usleep(1000L * 1000L);
+            }
         }
         else
         {
             example::GetRequest request;
+            example::GetResponse response;
+
+            request.set_key("test_key");
             stub.get(&cntl, &request, &response, NULL);
-        }
-        if (cntl.Failed())
-        {
-            LOG(WARNING) << "Fail to send request to " << leader
-                         << " : " << cntl.ErrorText();
-            // Clear leadership since this RPC failed.
-            braft::rtb::update_leader(FLAGS_group, braft::PeerId());
-            bthread_usleep(FLAGS_timeout_ms * 1000L);
-            continue;
-        }
-        if (!response.success())
-        {
-            LOG(WARNING) << "Fail to send request to " << leader
-                         << ", redirecting to "
-                         << (response.has_redirect()
-                                 ? response.redirect()
-                                 : "nowhere");
-            // Update route table since we have redirect information
-            braft::rtb::update_leader(FLAGS_group, response.redirect());
-            continue;
-        }
-        g_latency_recorder << cntl.latency_us();
-        if (FLAGS_log_each_request)
-        {
-            LOG(INFO) << "Received response from " << leader
-                      << " value=" << response.value()
-                      << " latency=" << cntl.latency_us();
-            bthread_usleep(1000L * 1000L);
+
+            if (cntl.Failed())
+            {
+                LOG(WARNING) << "Fail to send request to " << leader
+                             << " : " << cntl.ErrorText();
+                // Clear leadership since this RPC failed.
+                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
+                bthread_usleep(FLAGS_timeout_ms * 1000L);
+                continue;
+            }
+
+            if (!response.success())
+            {
+                LOG(WARNING) << "Fail to send request to " << leader
+                             << ", redirecting to "
+                             << (response.has_redirect()
+                                     ? response.redirect()
+                                     : "nowhere");
+                // Update route table since we have redirect information
+                braft::rtb::update_leader(FLAGS_group, response.redirect());
+                continue;
+            }
+
+            g_latency_recorder << cntl.latency_us();
+            if (FLAGS_log_each_request)
+            {
+                LOG(INFO) << "Received response from " << leader
+                          << " value=" << response.value()
+                          << " latency=" << cntl.latency_us();
+                bthread_usleep(1000L * 1000L);
+            }
         }
     }
     return NULL;
