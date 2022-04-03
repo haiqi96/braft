@@ -48,6 +48,8 @@ done
 
 export TCMALLOC_SAMPLE_PARAMETER=524288
 
+group_prefix="replica_"
+i=0
 ${VALGRIND} ./counter_client \
         --add_percentage=${FLAGS_add_percentage} \
         --bthread_concurrency=${FLAGS_bthread_concurrency} \
@@ -55,5 +57,6 @@ ${VALGRIND} ./counter_client \
         --crash_on_fatal_log=${FLAGS_crash_on_fatal} \
         --log_each_request=${FLAGS_log_each_request} \
         --thread_num=${FLAGS_thread_num} \
+        --group= "${group_prefix}${i}"\
         --use_bthread=${FLAGS_use_bthread} \
 

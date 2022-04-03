@@ -62,7 +62,7 @@ static void *sender(void *arg)
             bthread_usleep(FLAGS_timeout_ms * 1000L);
             continue;
         }
-        example::KeyValueService_Stub stub(&channel);
+        keyvalue::KeyValueService_Stub stub(&channel);
 
         brpc::Controller cntl;
         cntl.set_timeout_ms(FLAGS_timeout_ms);
@@ -70,8 +70,8 @@ static void *sender(void *arg)
 
         if (butil::fast_rand_less_than(100) < (size_t)FLAGS_add_percentage)
         {
-            example::InsertRequest request;
-            example::InsertResponse response;
+            keyvalue::InsertRequest request;
+            keyvalue::InsertResponse response;
 
             request.set_key("test_key");
             request.set_value("test_value");
@@ -109,8 +109,8 @@ static void *sender(void *arg)
         }
         else
         {
-            example::GetRequest request;
-            example::GetResponse response;
+            keyvalue::GetRequest request;
+            keyvalue::GetResponse response;
 
             request.set_key("test_key");
             stub.get(&cntl, &request, &response, NULL);

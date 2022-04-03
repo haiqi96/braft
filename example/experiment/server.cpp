@@ -34,7 +34,7 @@ DEFINE_string(conf, "", "Initial configuration of the replication group");
 DEFINE_string(data_path, "./data", "Path of data stored on");
 DEFINE_string(group, "Counter", "Id of the replication group");
 
-namespace example
+namespace keyvalue
 {
     class KeyValueNode;
 
@@ -379,21 +379,21 @@ namespace example
         _node->insert_redirect(_response);
     }
 
-    // Implements example::CounterService if you are using brpc.
+    // Implements keyvalue::CounterService if you are using brpc.
     class KeyValueServiceImpl : public KeyValueService
     {
     public:
         explicit KeyValueServiceImpl(KeyValueNode *node) : _node(node) {}
         void insert(::google::protobuf::RpcController *controller,
-                    const ::example::InsertRequest *request,
-                    ::example::InsertResponse *response,
+                    const ::keyvalue::InsertRequest *request,
+                    ::keyvalue::InsertResponse *response,
                     ::google::protobuf::Closure *done)
         {
             return _node->insert(request, response, done);
         }
         void get(::google::protobuf::RpcController *controller,
-                 const ::example::GetRequest *request,
-                 ::example::GetResponse *response,
+                 const ::keyvalue::GetRequest *request,
+                 ::keyvalue::GetResponse *response,
                  ::google::protobuf::Closure *done)
         {
             brpc::ClosureGuard done_guard(done);
@@ -404,7 +404,7 @@ namespace example
         KeyValueNode *_node;
     };
 
-} // namespace example
+} // namespace keyvalue
 
 int main(int argc, char *argv[])
 {
@@ -413,8 +413,8 @@ int main(int argc, char *argv[])
 
     // Generally you only need one Server.
     brpc::Server server;
-    example::KeyValueNode counter;
-    example::KeyValueServiceImpl service(&counter);
+    keyvalue::KeyValueNode counter;
+    keyvalue::KeyValueServiceImpl service(&counter);
 
     // Add your service into RPC server
     if (server.AddService(&service,

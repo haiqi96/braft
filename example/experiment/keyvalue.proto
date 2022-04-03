@@ -1,5 +1,5 @@
 syntax="proto2";
-package example;
+package keyvalue;
 option cc_generic_services = true;
 
 message Snapshot {
@@ -22,7 +22,7 @@ message InsertResponse {
 
 message GetResponse {
     required bool success = 1;
-    optional string value = 2;
+    required string value = 2;
     optional string redirect = 3;
 };
 
