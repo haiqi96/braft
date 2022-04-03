@@ -156,7 +156,14 @@ namespace keyvalue
 
             // This is the leader and is up-to-date. It's safe to respond client
             response->set_success(true);
-            response->set_value(_value[request->key()]);
+            if (_value.find(request->key()) == _value.end())
+            {
+                response->set_value("");
+            }
+            else
+            {
+                response->set_value(_value[request->key()]);
+            }
         }
 
         bool is_leader() const
@@ -379,7 +386,7 @@ namespace keyvalue
         _node->insert_redirect(_response);
     }
 
-    // Implements keyvalue::CounterService if you are using brpc.
+    // Implements keyvalue::KeyValueService if you are using brpc.
     class KeyValueServiceImpl : public KeyValueService
     {
     public:

@@ -23,7 +23,7 @@
 
 DEFINE_bool(log_each_request, false, "Print log for each request");
 DEFINE_bool(use_bthread, false, "Use bthread to send requests");
-DEFINE_int32(add_percentage, 100, "Percentage of fetch_add");
+DEFINE_int32(add_percentage, 50, "Percentage of fetch_add");
 DEFINE_int64(added_by, 1, "Num added to each peer");
 DEFINE_int32(thread_num, 1, "Number of threads sending requests");
 DEFINE_int32(timeout_ms, 1000, "Timeout for each request");

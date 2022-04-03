@@ -60,7 +60,7 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
     for ((j=0; j<$FLAGS_server_num; ++j)); do
         mkdir -p runtime/"replica_${i}_node_${j}"
         cp ./counter_server runtime/"replica_${i}_node_${j}"
-        cd runtime/$i
+        cd runtime/"replica_${i}_node_${j}"
         ${VALGRIND} ./counter_server \
             -bthread_concurrency=${FLAGS_bthread_concurrency}\
             -crash_on_fatal_log=${FLAGS_crash_on_fatal} \
