@@ -22,6 +22,7 @@
 #include <braft/util.h>          // braft::AsyncClosureGuard
 #include <braft/protobuf_file.h> // braft::ProtoBufFile
 #include "keyvalue.pb.h"         // CounterService
+#include <rocksdb/db.h>
 
 DEFINE_bool(check_term, true, "Check if the leader changed to another term");
 DEFINE_bool(disable_cli, false, "Don't allow raft_cli access this node");
@@ -98,6 +99,13 @@ namespace keyvalue
                 return -1;
             }
             _node = node;
+            // start a rocksdb instance
+            rocksdb::Options options;
+            options.create_if_missing = true;
+            rocksdb::Status status =
+            rocksdb::DB::Open(options, "node_db", &_db);
+            assert(status.ok());
+            LOG(INFO) << "initialized rocks db";
             return 0;
         }
 
@@ -155,15 +163,19 @@ namespace keyvalue
             }
 
             // This is the leader and is up-to-date. It's safe to respond client
-            response->set_success(true);
-            if (_value.find(request->key()) == _value.end())
+            std::string value;
+            std::string key = request->key();
+            rocksdb::Status status = _db->Get(rocksdb::ReadOptions(), key, &value);
+            LOG(INFO) << "Received key request " << key;
+            if (!status.IsNotFound())
             {
                 response->set_value("");
             }
             else
             {
-                response->set_value(_value[request->key()]);
+                response->set_value(value);
             }
+            response->set_success(true);
         }
 
         bool is_leader() const
@@ -252,7 +264,13 @@ namespace keyvalue
 
                 // Now the log has been parsed. Update this state machine by this
                 // operation.
-                _value[key] = value;
+                rocksdb::Status status = _db->Put(rocksdb::WriteOptions(), key, value);
+                if(status.ok()) {
+                    LOG(INFO) << "Successfully inserted " << key << " : " << value << "pair";
+                } else {
+                    LOG(ERROR) << "Fail to insert " << key << " : " << value << "pair";
+                }
+
                 if (response)
                 {
                     response->set_success(true);
@@ -369,6 +387,7 @@ namespace keyvalue
     private:
         braft::Node *volatile _node;
         std::map<std::string, std::string> _value;
+        rocksdb::DB* _db;
         butil::atomic<int64_t> _leader_term;
     };
 
@@ -420,8 +439,8 @@ int main(int argc, char *argv[])
 
     // Generally you only need one Server.
     brpc::Server server;
-    keyvalue::KeyValueNode counter;
-    keyvalue::KeyValueServiceImpl service(&counter);
+    keyvalue::KeyValueNode rocksdb_node;
+    keyvalue::KeyValueServiceImpl service(&rocksdb_node);
 
     // Add your service into RPC server
     if (server.AddService(&service,
@@ -452,7 +471,7 @@ int main(int argc, char *argv[])
     }
 
     // It's ok to start Counter;
-    if (counter.start() != 0)
+    if (rocksdb_node.start() != 0)
     {
         LOG(ERROR) << "Fail to start Counter";
         return -1;
@@ -468,11 +487,14 @@ int main(int argc, char *argv[])
     LOG(INFO) << "Counter service is going to quit";
 
     // Stop counter before server
-    counter.shutdown();
+    rocksdb_node.shutdown();
     server.Stop(0);
 
     // Wait until all the processing tasks are over.
-    counter.join();
+    rocksdb_node.join();
     server.Join();
+
+
+
     return 0;
 }

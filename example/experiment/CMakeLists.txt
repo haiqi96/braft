@@ -130,8 +130,12 @@ set(DYNAMIC_LIB
 target_link_libraries(counter_client
                       "-Xlinker \"-(\""
                       ${DYNAMIC_LIB}
-                      "-Xlinker \"-)\"")
+                      "-Xlinker \"-)\""
+                      rocksdb
+                      dl)
 target_link_libraries(counter_server
                       "-Xlinker \"-(\""
                       ${DYNAMIC_LIB}
-                      "-Xlinker \"-)\"")
+                      "-Xlinker \"-)\""
+                      rocksdb
+                      dl)
