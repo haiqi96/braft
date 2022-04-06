@@ -28,7 +28,7 @@ DEFINE_integer server_port 8100 "Port of the first server"
 DEFINE_integer server_num 2 'Number of servers'
 DEFINE_integer thread_num 1 'Number of sending thread'
 DEFINE_string crash_on_fatal 'true' 'Crash on fatal log'
-DEFINE_string log_each_request 'false' 'Print log for each request'
+DEFINE_string log_each_request 'true' 'Print log for each request'
 DEFINE_string valgrind 'false' 'Run in valgrind'
 DEFINE_string use_bthread "true" "Use bthread to send request"
 

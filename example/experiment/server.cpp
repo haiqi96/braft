@@ -86,7 +86,7 @@ namespace keyvalue
             node_options.fsm = this;
             node_options.node_owns_fsm = false;
             node_options.snapshot_interval_s = FLAGS_snapshot_interval;
-            std::string prefix = "local://" + FLAGS_data_path;
+            std::string prefix = "./" + FLAGS_data_path;
             node_options.log_uri = prefix + "/log";
             node_options.raft_meta_uri = prefix + "/raft_meta";
             node_options.snapshot_uri = prefix + "/snapshot";
@@ -283,73 +283,74 @@ namespace keyvalue
             }
         }
 
-        // struct SnapshotArg
-        // {
-        //     int64_t value;
-        //     braft::SnapshotWriter *writer;
-        //     braft::Closure *done;
-        // };
+        struct SnapshotArg
+        {
+            int64_t value;
+            braft::SnapshotWriter *writer;
+            braft::Closure *done;
+        };
 
-        // static void *save_snapshot(void *arg)
-        // {
-        //     SnapshotArg *sa = (SnapshotArg *)arg;
-        //     std::unique_ptr<SnapshotArg> arg_guard(sa);
-        //     // Serialize StateMachine to the snapshot
-        //     brpc::ClosureGuard done_guard(sa->done);
-        //     std::string snapshot_path = sa->writer->get_path() + "/data";
-        //     LOG(INFO) << "Saving snapshot to " << snapshot_path;
-        //     // Use protobuf to store the snapshot for backward compatibility.
-        //     Snapshot s;
-        //     s.set_value(sa->value);
-        //     braft::ProtoBufFile pb_file(snapshot_path);
-        //     if (pb_file.save(&s, true) != 0)
-        //     {
-        //         sa->done->status().set_error(EIO, "Fail to save pb_file");
-        //         return NULL;
-        //     }
-        //     // Snapshot is a set of files in raft. Add the only file into the
-        //     // writer here.
-        //     if (sa->writer->add_file("data") != 0)
-        //     {
-        //         sa->done->status().set_error(EIO, "Fail to add file to writer");
-        //         return NULL;
-        //     }
-        //     return NULL;
-        // }
+        static void *save_snapshot(void *arg)
+        {
+            SnapshotArg *sa = (SnapshotArg *)arg;
+            std::unique_ptr<SnapshotArg> arg_guard(sa);
+            // Serialize StateMachine to the snapshot
+            brpc::ClosureGuard done_guard(sa->done);
+            std::string snapshot_path = sa->writer->get_path() + "/data";
+            LOG(INFO) << "Saving snapshot to " << snapshot_path;
+            // Use protobuf to store the snapshot for backward compatibility.
+            Snapshot s;
+            s.set_value(sa->value);
+            braft::ProtoBufFile pb_file(snapshot_path);
+            if (pb_file.save(&s, true) != 0)
+            {
+                sa->done->status().set_error(EIO, "Fail to save pb_file");
+                return NULL;
+            }
+            // Snapshot is a set of files in raft. Add the only file into the
+            // writer here.
+            if (sa->writer->add_file("data") != 0)
+            {
+                sa->done->status().set_error(EIO, "Fail to add file to writer");
+                return NULL;
+            }
+            return NULL;
+        }
 
-        // void on_snapshot_save(braft::SnapshotWriter *writer, braft::Closure *done)
-        // {
-        //     // Save current StateMachine in memory and starts a new bthread to avoid
-        //     // blocking StateMachine since it's a bit slow to write data to disk
-        //     // file.
-        //     SnapshotArg *arg = new SnapshotArg;
-        //     arg->value = _value.load(butil::memory_order_relaxed);
-        //     arg->writer = writer;
-        //     arg->done = done;
-        //     bthread_t tid;
-        //     bthread_start_urgent(&tid, NULL, save_snapshot, arg);
-        // }
+        void on_snapshot_save(braft::SnapshotWriter *writer, braft::Closure *done)
+        {
+            // Save current StateMachine in memory and starts a new bthread to avoid
+            // blocking StateMachine since it's a bit slow to write data to disk
+            // file.
+            SnapshotArg *arg = new SnapshotArg;
+            arg->value = 0x31323334;//_value.load(butil::memory_order_relaxed);
+            arg->writer = writer;
+            arg->done = done;
+            bthread_t tid;
+            bthread_start_urgent(&tid, NULL, save_snapshot, arg);
+        }
 
-        // int on_snapshot_load(braft::SnapshotReader *reader)
-        // {
-        //     // Load snasphot from reader, replacing the running StateMachine
-        //     CHECK(!is_leader()) << "Leader is not supposed to load snapshot";
-        //     if (reader->get_file_meta("data", NULL) != 0)
-        //     {
-        //         LOG(ERROR) << "Fail to find `data' on " << reader->get_path();
-        //         return -1;
-        //     }
-        //     std::string snapshot_path = reader->get_path() + "/data";
-        //     braft::ProtoBufFile pb_file(snapshot_path);
-        //     Snapshot s;
-        //     if (pb_file.load(&s) != 0)
-        //     {
-        //         LOG(ERROR) << "Fail to load snapshot from " << snapshot_path;
-        //         return -1;
-        //     }
-        //     _value.store(s.value(), butil::memory_order_relaxed);
-        //     return 0;
-        // }
+        int on_snapshot_load(braft::SnapshotReader *reader)
+        {
+            // Load snasphot from reader, replacing the running StateMachine
+            CHECK(!is_leader()) << "Leader is not supposed to load snapshot";
+            if (reader->get_file_meta("data", NULL) != 0)
+            {
+                LOG(ERROR) << "Fail to find `data' on " << reader->get_path();
+                return -1;
+            }
+            std::string snapshot_path = reader->get_path() + "/data";
+            braft::ProtoBufFile pb_file(snapshot_path);
+            Snapshot s;
+            if (pb_file.load(&s) != 0)
+            {
+                LOG(ERROR) << "Fail to load snapshot from " << snapshot_path;
+                return -1;
+            }
+            LOG(INFO) << "Loaded value " << s.value();
+            //_value.store(s.value(), butil::memory_order_relaxed);
+            return 0;
+        }
 
         void on_leader_start(int64_t term)
         {
