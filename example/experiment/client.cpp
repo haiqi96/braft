@@ -34,6 +34,8 @@ bvar::LatencyRecorder g_latency_recorder("counter_client");
 
 static void *sender(void *arg)
 {
+    int read_index = 0;
+    int write_index = 0;
     while (!brpc::IsAskedToQuit())
     {
         braft::PeerId leader;
@@ -73,8 +75,12 @@ static void *sender(void *arg)
             keyvalue::InsertRequest request;
             keyvalue::InsertResponse response;
 
-            request.set_key("test_key");
-            request.set_value("test_value");
+            std::string test_key = "test_key" + std::to_string(write_index);
+            std::string test_value = "test_value" + std::to_string(write_index);
+            request.set_key(test_key);
+            request.set_value(test_value);
+            std::cout << "insert " << test_key << " : " <<  test_value << std::endl;
+            write_index++;
             stub.insert(&cntl, &request, &response, NULL);
 
             if (cntl.Failed())
@@ -102,7 +108,7 @@ static void *sender(void *arg)
             g_latency_recorder << cntl.latency_us();
             if (FLAGS_log_each_request)
             {
-                LOG(INFO) << "Received response from " << leader
+                LOG(INFO) << "Received write response from " << leader
                           << ", insert successfully";
                 bthread_usleep(1000L * 1000L);
             }
@@ -112,7 +118,9 @@ static void *sender(void *arg)
             keyvalue::GetRequest request;
             keyvalue::GetResponse response;
 
-            request.set_key("test_key");
+            printf("read\n");
+            std::string read_test_key = "test_key" + std::to_string(read_index);
+            request.set_key(read_test_key);
             stub.get(&cntl, &request, &response, NULL);
 
             if (cntl.Failed())
@@ -136,11 +144,14 @@ static void *sender(void *arg)
                 braft::rtb::update_leader(FLAGS_group, response.redirect());
                 continue;
             }
-
+            std::cout << "read " << read_test_key << " : " <<  response.value() << std::endl;
+            if(read_index < write_index - 1){
+                read_index++;
+            }
             g_latency_recorder << cntl.latency_us();
             if (FLAGS_log_each_request)
             {
-                LOG(INFO) << "Received response from " << leader
+                LOG(INFO) << "Received read response from " << leader
                           << " value=" << response.value()
                           << " latency=" << cntl.latency_us();
                 bthread_usleep(1000L * 1000L);

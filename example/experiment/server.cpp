@@ -86,7 +86,7 @@ namespace keyvalue
             node_options.fsm = this;
             node_options.node_owns_fsm = false;
             node_options.snapshot_interval_s = FLAGS_snapshot_interval;
-            std::string prefix = "./" + FLAGS_data_path;
+            std::string prefix = "local://" + FLAGS_data_path;
             node_options.log_uri = prefix + "/log";
             node_options.raft_meta_uri = prefix + "/raft_meta";
             node_options.snapshot_uri = prefix + "/snapshot";
@@ -167,7 +167,7 @@ namespace keyvalue
             std::string key = request->key();
             rocksdb::Status status = _db->Get(rocksdb::ReadOptions(), key, &value);
             LOG(INFO) << "Received key request " << key;
-            if (!status.IsNotFound())
+            if (status.IsNotFound())
             {
                 response->set_value("");
             }
