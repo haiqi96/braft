@@ -106,6 +106,7 @@ namespace keyvalue
             rocksdb::DB::Open(options, "node_db", &_db);
             assert(status.ok());
             LOG(INFO) << "initialized rocks db";
+            _tracked_value = 0;
             return 0;
         }
 
@@ -231,6 +232,7 @@ namespace keyvalue
         }
 
         // @braft::StateMachine
+        // Just a reminder, this apply needs to be idempotent
         void on_apply(braft::Iterator &iter)
         {
             // A batch of tasks are committed, which must be processed through
@@ -280,6 +282,8 @@ namespace keyvalue
                 LOG_IF(INFO, FLAGS_log_applied_task)
                     << "Assign value=" << value << " to key=" << key
                     << " at log_index=" << iter.index();
+                _tracked_value = _tracked_value + 1;
+                LOG(INFO) << "Update value to " << _tracked_value;
             }
         }
 
@@ -323,8 +327,9 @@ namespace keyvalue
             // blocking StateMachine since it's a bit slow to write data to disk
             // file.
             SnapshotArg *arg = new SnapshotArg;
-            arg->value = 0x31323334;//_value.load(butil::memory_order_relaxed);
+            arg->value = _tracked_value.load(butil::memory_order_relaxed);//_value.load(butil::memory_order_relaxed);
             arg->writer = writer;
+            LOG(INFO) << "Snapshot value to " << arg->value;
             arg->done = done;
             bthread_t tid;
             bthread_start_urgent(&tid, NULL, save_snapshot, arg);
@@ -348,7 +353,7 @@ namespace keyvalue
                 return -1;
             }
             LOG(INFO) << "Loaded value " << s.value();
-            //_value.store(s.value(), butil::memory_order_relaxed);
+            _tracked_value.store(s.value(), butil::memory_order_relaxed);
             return 0;
         }
 
@@ -389,6 +394,7 @@ namespace keyvalue
         braft::Node *volatile _node;
         std::map<std::string, std::string> _value;
         rocksdb::DB* _db;
+        butil::atomic<int64_t> _tracked_value;
         butil::atomic<int64_t> _leader_term;
     };
 

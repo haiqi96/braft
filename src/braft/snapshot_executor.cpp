@@ -112,6 +112,7 @@ SnapshotExecutor::~SnapshotExecutor() {
 }
 
 void SnapshotExecutor::do_snapshot(Closure* done) {
+    LOG(INFO) << "Executor doing snapshot";
     std::unique_lock<raft_mutex_t> lck(_mutex);
     int64_t saved_last_snapshot_index = _last_snapshot_index;
     int64_t saved_last_snapshot_term = _last_snapshot_term;
@@ -143,6 +144,8 @@ void SnapshotExecutor::do_snapshot(Closure* done) {
         return;
     }
     int64_t saved_fsm_applied_index = _fsm_caller->last_applied_index();
+    LOG(INFO) << "Executor see FSM's index: " << saved_fsm_applied_index;
+    LOG(INFO) << "Executor see last snapshot's index: " << _last_snapshot_index;
     if (saved_fsm_applied_index - _last_snapshot_index < 
                                         FLAGS_raft_do_snapshot_min_index_gap) {
         // There might be false positive as the last_applied_index() is being

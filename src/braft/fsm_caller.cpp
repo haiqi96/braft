@@ -264,6 +264,7 @@ void FSMCaller::do_committed(int64_t committed_index) {
     if (!_error.status().ok()) {
         return;
     }
+    LOG(INFO) << "Try commit index " << committed_index;
     int64_t last_applied_index = _last_applied_index.load(
                                         butil::memory_order_relaxed);
 
@@ -313,6 +314,7 @@ void FSMCaller::do_committed(int64_t committed_index) {
     const int64_t last_index = iter_impl.index() - 1;
     const int64_t last_term = _log_manager->get_term(last_index);
     LogId last_applied_id(last_index, last_term);
+    LOG(INFO) << "store commit index " << committed_index;
     _last_applied_index.store(committed_index, butil::memory_order_release);
     _last_applied_term = last_term;
     _log_manager->set_applied_id(last_applied_id);
