@@ -109,8 +109,10 @@ if ((NOT LEVELDB_INCLUDE_PATH) OR (NOT LEVELDB_LIB))
 endif()
 include_directories(${LEVELDB_INCLUDE_PATH})
 
-add_executable(counter_client client.cpp ${PROTO_SRC} ${PROTO_HEADER})
-add_executable(counter_server server.cpp ${PROTO_SRC} ${PROTO_HEADER})
+
+
+add_executable(counter_client client.cpp OPcode.h ${PROTO_SRC} ${PROTO_HEADER})
+add_executable(counter_server server.cpp OPcode.h ${PROTO_SRC} ${PROTO_HEADER})
 
 set(DYNAMIC_LIB
     ${CMAKE_THREAD_LIBS_INIT}

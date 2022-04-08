@@ -7,8 +7,9 @@ message Snapshot {
 };
 
 message InsertRequest {
-    required string key = 1;
-    required string value = 2;
+    required int32 op = 1;
+    required string key = 2;
+    required string value = 3;
 };
 
 message GetRequest {

@@ -20,10 +20,11 @@
 #include <braft/util.h>
 #include <braft/route_table.h>
 #include "keyvalue.pb.h"
+#include "OPcode.h"
 
 DEFINE_bool(log_each_request, false, "Print log for each request");
 DEFINE_bool(use_bthread, false, "Use bthread to send requests");
-DEFINE_int32(add_percentage, 50, "Percentage of fetch_add");
+DEFINE_int32(update_percentage, 50, "Percentage of update_database");
 DEFINE_int64(added_by, 1, "Num added to each peer");
 DEFINE_int32(thread_num, 1, "Number of threads sending requests");
 DEFINE_int32(timeout_ms, 1000, "Timeout for each request");
@@ -70,7 +71,7 @@ static void *sender(void *arg)
         cntl.set_timeout_ms(FLAGS_timeout_ms);
         // Randomly select which request we want send;
 
-        if (butil::fast_rand_less_than(100) < (size_t)FLAGS_add_percentage)
+        if (butil::fast_rand_less_than(100) < (size_t)FLAGS_update_percentage)
         {
             keyvalue::InsertRequest request;
             keyvalue::InsertResponse response;
@@ -79,7 +80,8 @@ static void *sender(void *arg)
             std::string test_value = "test_value" + std::to_string(write_index);
             request.set_key(test_key);
             request.set_value(test_value);
-            std::cout << "insert " << test_key << " : " <<  test_value << std::endl;
+            request.set_op(OP_WRITE);
+            std::cout << "write " << test_key << " : " <<  test_value << std::endl;
             write_index++;
             stub.insert(&cntl, &request, &response, NULL);
 

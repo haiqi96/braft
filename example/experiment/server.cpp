@@ -22,6 +22,7 @@
 #include <braft/util.h>          // braft::AsyncClosureGuard
 #include <braft/protobuf_file.h> // braft::ProtoBufFile
 #include "keyvalue.pb.h"         // CounterService
+#include "OPcode.h"
 #include <rocksdb/db.h>
 
 DEFINE_bool(check_term, true, "Check if the leader changed to another term");
@@ -239,6 +240,7 @@ namespace keyvalue
             {
                 std::string key;
                 std::string value;
+                int op;
                 InsertResponse *response = NULL;
                 // This guard helps invoke iter.done()->Run() asynchronously to
                 // avoid that callback blocks the StateMachine.
@@ -251,6 +253,7 @@ namespace keyvalue
                     response = c->response();
                     key = c->request()->key();
                     value = c->request()->value();
+                    op = c->request()->op();
                 }
                 else
                 {
@@ -260,26 +263,35 @@ namespace keyvalue
                     CHECK(request.ParseFromZeroCopyStream(&wrapper));
                     key = request.key();
                     value = request.value();
+                    op = request.op();
                 }
 
                 // Now the log has been parsed. Update this state machine by this
                 // operation.
-                rocksdb::Status status = _db->Put(rocksdb::WriteOptions(), key, value);
-                if(status.ok()) {
-                    LOG(INFO) << "Successfully inserted " << key << " : " << value << "pair";
+                if(OP_WRITE == op) {
+                    rocksdb::Status status = _db->Put(rocksdb::WriteOptions(), key, value);
+                    if(status.ok()) {
+                        LOG(INFO) << "Successfully inserted " << key << " : " << value << "pair";
+                    } else {
+                        LOG(ERROR) << "Fail to insert " << key << " : " << value << "pair";
+                    }
+
+                    if (response)
+                    {
+                        response->set_success(true);
+                    }
+
+                    // Remove these logs in performance-sensitive servers.
+                    LOG_IF(INFO, FLAGS_log_applied_task)
+                        << "Assign value=" << value << " to key=" << key
+                        << " at log_index=" << iter.index();
                 } else {
-                    LOG(ERROR) << "Fail to insert " << key << " : " << value << "pair";
+                    LOG(ERROR) << "Not supported op code " <<  op;
+                    if (response)
+                    {
+                        response->set_success(false);
+                    }
                 }
-
-                if (response)
-                {
-                    response->set_success(true);
-                }
-
-                // Remove these logs in performance-sensitive servers.
-                LOG_IF(INFO, FLAGS_log_applied_task)
-                    << "Assign value=" << value << " to key=" << key
-                    << " at log_index=" << iter.index();
             }
         }
 
