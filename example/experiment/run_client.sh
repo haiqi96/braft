@@ -25,7 +25,7 @@ DEFINE_boolean clean 1 'Remove old "runtime" dir before running'
 DEFINE_integer update_percentage 50 'Percentage of fetch_add operation'
 DEFINE_integer bthread_concurrency '8' 'Number of worker pthreads'
 DEFINE_integer server_port 8100 "Port of the first server"
-DEFINE_integer server_num 2 'Number of servers'
+DEFINE_integer server_num 3 'Number of servers'
 DEFINE_integer thread_num 1 'Number of sending thread'
 DEFINE_string crash_on_fatal 'true' 'Crash on fatal log'
 DEFINE_string log_each_request 'true' 'Print log for each request'
@@ -42,11 +42,11 @@ if [ "$FLAGS_valgrind" == "true" ] && [ $(which valgrind) ] ; then
 fi
 
 declare -a participants=('10.10.0.111' '10.10.0.112' '10.10.0.118')
-port='8100'
+group_port='8100'
 
 group_participants=""
 for ((j=0; j<$FLAGS_server_num; ++j)); do
-    participant_ip=$participants[$j]
+    participant_ip=${participants[$j]}
     group_participants="${group_participants}${participant_ip}:$((${group_port})):0,"
 done
 

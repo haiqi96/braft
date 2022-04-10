@@ -78,9 +78,11 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
     group_participants=""
 
     for ((j=0; j<$FLAGS_server_num; ++j)); do
-        participant_ip=$participants[$j]
+        participant_ip=${participants[$j]}
         group_participants="${group_participants}${participant_ip}:$((${group_port})):0,"
     done
+
+    echo "$group_participants"
 
     mkdir -p runtime/"partition_${i}"
     cp ./counter_server runtime/"partition_${i}"
