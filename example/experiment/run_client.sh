@@ -46,7 +46,7 @@ for ((i=0; i<$FLAGS_server_num; ++i)); do
     raft_peers="${raft_peers}${IP}:$((${FLAGS_server_port}+i)):0,"
 done
 
-export TCMALLOC_SAMPLE_PARAMETER=524288
+#export TCMALLOC_SAMPLE_PARAMETER=524288
 
 group_prefix="replica_"
 i=0
