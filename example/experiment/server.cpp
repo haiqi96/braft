@@ -35,6 +35,7 @@ DEFINE_int32(snapshot_interval, 30, "Interval between each snapshot");
 DEFINE_string(conf, "", "Initial configuration of the replication group");
 DEFINE_string(data_path, "./data", "Path of data stored on");
 DEFINE_string(group, "Counter", "Id of the replication group");
+DEFINE_string(rocksdb_path, "node_db", "Default path to the rocks db file");
 
 namespace keyvalue
 {
@@ -104,7 +105,7 @@ namespace keyvalue
             rocksdb::Options options;
             options.create_if_missing = true;
             rocksdb::Status status =
-            rocksdb::DB::Open(options, "node_db", &_db);
+            rocksdb::DB::Open(options, FLAGS_rocksdb_path, &_db);
             assert(status.ok());
             LOG(INFO) << "initialized rocks db";
             return 0;
