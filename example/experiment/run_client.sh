@@ -42,8 +42,8 @@ if [ "$FLAGS_valgrind" == "true" ] && [ $(which valgrind) ] ; then
 fi
 
 declare -a participants=('10.10.0.111' '10.10.0.112' '10.10.0.118')
-group_port='8100'
 
+group_port='8100'
 group_participants=""
 for ((j=0; j<$FLAGS_server_num; ++j)); do
     participant_ip=${participants[$j]}
@@ -61,6 +61,6 @@ ${VALGRIND} ./counter_client \
         --crash_on_fatal_log=${FLAGS_crash_on_fatal} \
         --log_each_request=${FLAGS_log_each_request} \
         --thread_num=${FLAGS_thread_num} \
-        --group= "${group}"\
+        --group="${group}" \
         --use_bthread=${FLAGS_use_bthread} \
 
