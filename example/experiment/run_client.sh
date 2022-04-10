@@ -41,9 +41,13 @@ if [ "$FLAGS_valgrind" == "true" ] && [ $(which valgrind) ] ; then
     VALGRIND="valgrind --tool=memcheck --leak-check=full"
 fi
 
-raft_peers=""
-for ((i=0; i<$FLAGS_server_num; ++i)); do
-    raft_peers="${raft_peers}${IP}:$((${FLAGS_server_port}+i)):0,"
+declare -a participants=('10.10.0.111' '10.10.0.112' '10.10.0.118')
+port='8100'
+
+group_participants=""
+for ((j=0; j<$FLAGS_server_num; ++j)); do
+    participant_ip=$participants[$j]
+    group_participants="${group_participants}${participant_ip}:$((${group_port})):0,"
 done
 
 export TCMALLOC_SAMPLE_PARAMETER=524288
@@ -53,7 +57,7 @@ i=0
 ${VALGRIND} ./counter_client \
         --update_percentage=${FLAGS_update_percentage} \
         --bthread_concurrency=${FLAGS_bthread_concurrency} \
-        --conf="${raft_peers}" \
+        --conf="${group_participants}" \
         --crash_on_fatal_log=${FLAGS_crash_on_fatal} \
         --log_each_request=${FLAGS_log_each_request} \
         --thread_num=${FLAGS_thread_num} \

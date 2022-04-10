@@ -33,6 +33,13 @@ DEFINE_integer partition_num 3 'Number of key range partitions'
 my_ip=$(hostname -I)
 declare -a group_default_ports=('8100' '8101' '8102')
 declare -a participants=('10.10.0.111' '10.10.0.112' '10.10.0.118')
+
+# Runing this script will spin up one column as the table below:
+#               Machine 1           Machine 2           Machine 3
+# Group 1 ['10.10.0.111:8100', '10.10.0.112:8100', '10.10.0.118:8100']
+# Group 2 ['10.10.0.111:8101', '10.10.0.112:8101', '10.10.0.118:8101']
+# Group 3 ['10.10.0.111:8102', '10.10.0.112:8102', '10.10.0.118:8102']
+
 group_prefix="replica_"
 rocksdb_path_prefix="rocksdb_file_"
 
@@ -56,29 +63,38 @@ fi
 
 export TCMALLOC_SAMPLE_PARAMETER=524288
 
+# E.g if the current machine ip is 10.10.0.111
+# This script starts:
+#               Machine 1      
+# Group 1 ['10.10.0.111:8100']
+# Group 2 ['10.10.0.111:8101']
+# Group 3 ['10.10.0.111:8102']
+
 for ((i=0; i<$FLAGS_partition_num; ++i)); do
 
-    # Replica within the same group starts on the same port
-    common_group_port=${group_default_ports[$i]}
-    raft_peers=""
+    group_port=${group_default_ports[$i]}
+    group_name=${group_prefix}${i}
+    group_rocksdb_path=${rocksdb_path_prefix}${i}
+    group_participants=""
 
     for ((j=0; j<$FLAGS_server_num; ++j)); do
         participant_ip=$participants[$j]
-        raft_peers="${raft_peers}${participant_ip}:$((${group_port})):0,"
+        group_participants="${group_participants}${participant_ip}:$((${group_port})):0,"
     done
 
     mkdir -p runtime/"partition_${i}"
     cp ./counter_server runtime/"partition_${i}"
     cd runtime/"partition_${i}"
+
     ${VALGRIND} ./counter_server \
         -bthread_concurrency=${FLAGS_bthread_concurrency}\
         -crash_on_fatal_log=${FLAGS_crash_on_fatal} \
         -raft_max_segment_size=${FLAGS_max_segment_size} \
         -raft_sync=${FLAGS_sync} \
-        -port="${common_group_port}" \
-        -group= "${group_prefix}${i}"\
-        -rocksdb_path="${rocksdb_path_prefix}${i}"
-        -conf="${raft_peers}" > std.log 2>&1 &
+        -port="${group_port}" \
+        -group="${group_name}"\
+        -rocksdb_path="${group_rocksdb_path}"
+        -conf="${group_participants}" > std.log 2>&1 &
     cd ../..
 
 done
