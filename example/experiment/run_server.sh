@@ -101,8 +101,8 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
         -raft_max_segment_size=${FLAGS_max_segment_size} \
         -raft_sync=${FLAGS_sync} \
         -port="${group_port}" \
-        -group="${group_name}"\
-        -rocksdb_path="${group_rocksdb_path}"
+        -group="${group_name}" \
+        -rocksdb_path="${group_rocksdb_path}" \
         -conf="${group_participants}" > std.log 2>&1 &
     cd ../..
 
