@@ -30,13 +30,24 @@ DEFINE_int32(thread_num, 1, "Number of threads sending requests");
 DEFINE_int32(timeout_ms, 1000, "Timeout for each request");
 DEFINE_string(conf, "", "Configuration of the raft group");
 DEFINE_string(group, "Counter", "Id of the replication group");
+DEFINE_int32(op, 0, "Op code for what operation to perform");
+DEFINE_string(key, "20", "Key to read/written/deleted");
+DEFINE_string(value, "abc", "The value corresponding to the key argument");
 
 bvar::LatencyRecorder g_latency_recorder("counter_client");
+
+struct client_args{
+    int op;
+    std::string key;
+    std::string value = "";
+};
 
 static void *sender(void *arg)
 {
     int read_index = 0;
     int write_index = 0;
+    struct client_args * cl_args = (struct client_args *)arg;
+    std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
     while (!brpc::IsAskedToQuit())
     {
         braft::PeerId leader;
@@ -284,6 +295,10 @@ int main(int argc, char *argv[])
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
     butil::AtExitManager exit_manager;
 
+    struct client_args * cl_args = (struct client_args *) malloc(sizeof(struct client_args));
+    cl_args->key = FLAGS_key;
+    cl_args->value = FLAGS_value;
+    cl_args->op = FLAGS_op;
     // Register configuration of target group to RouteTable
     if (braft::rtb::update_configuration(FLAGS_group, FLAGS_conf) != 0)
     {
@@ -298,7 +313,7 @@ int main(int argc, char *argv[])
     {
         for (int i = 0; i < FLAGS_thread_num; ++i)
         {
-            if (pthread_create(&tids[i], NULL, sender, NULL) != 0)
+            if (pthread_create(&tids[i], NULL, sender, cl_args) != 0)
             {
                 LOG(ERROR) << "Fail to create pthread";
                 return -1;
@@ -339,6 +354,6 @@ int main(int argc, char *argv[])
             bthread_join(tids[i], NULL);
         }
     }
-
+    free(cl_args);
     return 0;
 }
