@@ -285,7 +285,19 @@ namespace keyvalue
                     LOG_IF(INFO, FLAGS_log_applied_task)
                         << "Assign value=" << value << " to key=" << key
                         << " at log_index=" << iter.index();
-                } else {
+                } else if (OP_DELETE == op) {
+                    rocksdb::Status status = _db->Delete(rocksdb::WriteOptions(), key);
+                    if(status.ok()){
+                        LOG(INFO) << "Successfully deleted" << key;
+                    }
+                    else {
+                        LOG(ERROR) << "Deletion failed, Key " << key << " not present in the database";
+                    }
+                    if (response){
+                        response->set_success(true);
+                    }
+                } 
+                else {
                     LOG(ERROR) << "Not supported op code " <<  op;
                     if (response)
                     {
