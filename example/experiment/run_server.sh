@@ -32,6 +32,11 @@ DEFINE_integer partition_num 3 'Number of key range partitions'
 
 my_ip=$(hostname -I)
 declare -a group_default_ports=('8100' '8101' '8102')
+
+for ((i=0; i<$FLAGS_server_num; ++i)); do
+    sudo ufw allow ${group_default_ports[$i]}/tcp
+done
+
 declare -a participants=('10.10.0.111' '10.10.0.112' '10.10.0.118')
 
 # Runing this script will spin up one column as the table below:
@@ -83,6 +88,8 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
     done
 
     echo "$group_participants"
+    echo "group is"
+    echo "${group_name}"
 
     mkdir -p runtime/"partition_${i}"
     cp ./counter_server runtime/"partition_${i}"
