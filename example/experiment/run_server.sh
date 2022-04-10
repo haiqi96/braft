@@ -33,7 +33,7 @@ DEFINE_integer partition_num 3 'Number of key range partitions'
 my_ip=$(hostname -I)
 declare -a group_default_ports=('8100' '8101' '8102')
 
-for ((i=0; i<$FLAGS_server_num; ++i)); do
+for ((i=0; i<$FLAGS_partition_num; ++i)); do
     sudo ufw allow ${group_default_ports[$i]}/tcp
 done
 
