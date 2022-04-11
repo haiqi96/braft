@@ -32,9 +32,6 @@ DEFINE_int32(thread_num, 1, "Number of threads sending requests");
 DEFINE_int32(timeout_ms, 1000, "Timeout for each request");
 DEFINE_string(conf, "", "Configuration of the raft group");
 DEFINE_string(group, "Counter", "Id of the replication group");
-DEFINE_int32(op, 0, "Op code for what operation to perform");
-DEFINE_string(key, "20", "Key to read/written/deleted");
-DEFINE_string(value, "abc", "The value corresponding to the key argument");
 
 bvar::LatencyRecorder g_latency_recorder("counter_client");
 
@@ -54,8 +51,7 @@ struct client_args{
 
 static void *sender(void *arg)
 {
-    int read_index = 0;
-    int write_index = 0;
+
     struct client_args * cl_args = (struct client_args *)arg;
     std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
     
@@ -95,8 +91,8 @@ static void *sender(void *arg)
 
         brpc::Controller cntl;
         cntl.set_timeout_ms(FLAGS_timeout_ms);
-        // Randomly select which request we want send;
 
+        // For any non-read operation call the stub.insert rpc call
         if (OP_WRITE == cl_args->op || OP_DELETE == cl_args->op || OP_MODIFY == cl_args->op)
         {
             keyvalue::InsertRequest request;
@@ -183,9 +179,7 @@ static void *sender(void *arg)
                 continue;
             }
             std::cout << "read " << read_test_key << " : " <<  response.value() << std::endl;
-            if(read_index < write_index - 1){
-                read_index++;
-            }
+
             g_latency_recorder << cntl.latency_us();
             if (FLAGS_log_each_request)
             {
@@ -195,6 +189,7 @@ static void *sender(void *arg)
                 bthread_usleep(1000L * 1000L);
             }
         }
+        // If either operation is successful, break out of the loop and accept another op
         break;
     }
     return NULL;
@@ -205,10 +200,9 @@ int main(int argc, char *argv[])
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
     butil::AtExitManager exit_manager;
 
+    // cl_args stored in heap because this pointer is passed to the sender thread
     struct client_args * cl_args = (struct client_args *) malloc(sizeof(struct client_args));
-    // cl_args->key = FLAGS_key;
-    // cl_args->value = FLAGS_value;
-    // cl_args->op = FLAGS_op;
+
     // Register configuration of target group to RouteTable
     if (braft::rtb::update_configuration(FLAGS_group, FLAGS_conf) != 0)
     {
@@ -217,12 +211,17 @@ int main(int argc, char *argv[])
         return -1;
     }
     std::vector<bthread_t> tids;
+
+    // Keep accepting operations until exit
     while (!brpc::IsAskedToQuit()){
+        // Command line interface to accept arguments: op, key-value pair
         int cin_op;
         std::string cin_key;
         std::string cin_value;
         std::cout << "Enter op code (0, 1, 2 or 3) press -1 to exit: ";
         std::cin >> cin_op;
+
+        // If input op is -1, exit the program
         if(cin_op == -1){
             free(cl_args);  
             return 0;
@@ -231,11 +230,14 @@ int main(int argc, char *argv[])
         std::cout << "Enter the key :";
         std::cin >> cin_key;
         cl_args->key = cin_key;
+        // Read and Delete operations don't require a value
         if((OP_READ != cin_op) &&  (OP_DELETE != cin_op)){
             std::cout << "Enter the value :";
             std::cin >> cin_value;
             cl_args->value = cin_value;
         }
+
+
         tids.resize(FLAGS_thread_num);
         if (!FLAGS_use_bthread)
         {
@@ -274,16 +276,17 @@ int main(int argc, char *argv[])
             }
     }
 
-    // while (!brpc::IsAskedToQuit())
-    // {
-    //     sleep(1);
-    //     LOG_IF(INFO, !FLAGS_log_each_request)
-    //         << "Sending Request to " << FLAGS_group
-    //         << " (" << FLAGS_conf << ')'
-    //         << " at qps=" << g_latency_recorder.qps(1)
-    //         << " latency=" << g_latency_recorder.latency(1);
-    // }
+    //while (!brpc::IsAskedToQuit())
+    //{
+    //    sleep(1);
+    //    LOG_IF(INFO, !FLAGS_log_each_request)
+    //        << "Sending Request to " << FLAGS_group
+    //        << " (" << FLAGS_conf << ')'
+    //        << " at qps=" << g_latency_recorder.qps(1)
+    //        << " latency=" << g_latency_recorder.latency(1);
+    //}
 
+    // User pressed Ctrl + C
     LOG(INFO) << "Counter client is going to quit";
 
     free(cl_args);
