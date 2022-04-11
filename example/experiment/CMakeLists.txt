@@ -19,8 +19,8 @@ if (NOT PROTOBUF_PROTOC_EXECUTABLE)
     set (PROTOBUF_PROTOC_EXECUTABLE "${PROTO_LIB_DIR}/../bin/protoc")
 endif()
 
-set(BRPC_INCLUDE_PATH "/home/haiqi/incubator-brpc/output/include")
-set(BRPC_LIB "/home/haiqi/incubator-brpc/output/lib/libbrpc.so")
+set(BRPC_INCLUDE_PATH "/home/rishi/incubator-brpc/output/include")
+set(BRPC_LIB "/home/rishi/incubator-brpc/output/lib/libbrpc.so")
 
 protobuf_generate_cpp(PROTO_SRC PROTO_HEADER keyvalue.proto)
 # include PROTO_HEADER

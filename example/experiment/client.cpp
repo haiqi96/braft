@@ -82,18 +82,22 @@ static void *sender(void *arg)
         cntl.set_timeout_ms(FLAGS_timeout_ms);
         // Randomly select which request we want send;
 
-        if (butil::fast_rand_less_than(100) < 50)
+        if (OP_WRITE == cl_args->op || OP_DELETE == cl_args->op || OP_MODIFY == cl_args->op)
         {
             keyvalue::InsertRequest request;
             keyvalue::InsertResponse response;
 
-            std::string test_key = "test_key" + std::to_string(write_index);
-            std::string test_value = "test_value" + std::to_string(write_index);
+            std::string test_key = cl_args->key;
+            std::string test_value = cl_args->value;
             request.set_key(test_key);
+            request.set_op(cl_args->op);
             request.set_value(test_value);
-            request.set_op(OP_WRITE);
-            std::cout << "write " << test_key << " : " <<  test_value << std::endl;
-            write_index++;
+            if (OP_DELETE == cl_args->op){
+                std::cout << "delete " << test_key << std::endl;
+            }
+            else {
+                std::cout << "write " << test_key << " : " <<  test_value << std::endl;
+            }
             stub.insert(&cntl, &request, &response, NULL);
 
             if (cntl.Failed())
@@ -121,134 +125,24 @@ static void *sender(void *arg)
             g_latency_recorder << cntl.latency_us();
             if (FLAGS_log_each_request)
             {
-                LOG(INFO) << "Received write response from " << leader
+                if (OP_DELETE == cl_args->op){
+                    LOG(INFO) << "Received write response from " << leader
+                          << ", deleted successfully";
+                }
+                else {
+                    LOG(INFO) << "Received write response from " << leader
                           << ", insert successfully";
+                }
                 bthread_usleep(1000L * 1000L);
             }
         } 
-        else if (butil::fast_rand_less_than(100) < 50){
-            keyvalue::InsertRequest request;
-            keyvalue::InsertResponse response;
-            int del_index = 200;
-            std::string test_key = "test_key" + std::to_string(del_index);
-            std::string test_value = "test_value" + std::to_string(del_index);
-            request.set_key(test_key);
-            request.set_value(test_value);
-            request.set_op(OP_WRITE);
-            std::cout << "write " << test_key << " : " <<  test_value << std::endl;
-            stub.insert(&cntl, &request, &response, NULL);
-            if (cntl.Failed())
-            {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << " : " << cntl.ErrorText();
-                // Clear leadership since this RPC failed.
-                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
-                bthread_usleep(FLAGS_timeout_ms * 1000L);
-                continue;
-            }
-
-            if (!response.success())
-            {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << ", redirecting to "
-                             << (response.has_redirect()
-                                     ? response.redirect()
-                                     : "nowhere");
-                // Update route table since we have redirect information
-                braft::rtb::update_leader(FLAGS_group, response.redirect());
-                continue;
-            }
-
-            g_latency_recorder << cntl.latency_us();
-            if (FLAGS_log_each_request)
-            {
-                LOG(INFO) << "Received write response from " << leader
-                          << ", insert successfully";
-                bthread_usleep(1000L * 1000L);
-            }
-            cntl.Reset();
-            request.set_key(test_key);
-            request.set_value(test_value);
-            request.set_op(OP_DELETE);
-            std::cout << "delete " << test_key << std::endl;
-            stub.insert(&cntl, &request, &response, NULL);
-
-            if (cntl.Failed())
-            {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << " : " << cntl.ErrorText();
-                // Clear leadership since this RPC failed.
-                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
-                bthread_usleep(FLAGS_timeout_ms * 1000L);
-                continue;
-            }
-
-            if (!response.success())
-            {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << ", redirecting to "
-                             << (response.has_redirect()
-                                     ? response.redirect()
-                                     : "nowhere");
-                // Update route table since we have redirect information
-                braft::rtb::update_leader(FLAGS_group, response.redirect());
-                continue;
-            }
-
-            g_latency_recorder << cntl.latency_us();
-            if (FLAGS_log_each_request)
-            {
-                LOG(INFO) << "Received delete response from " << leader
-                          << ", delete successfully";
-                bthread_usleep(1000L * 1000L);
-            }
-
-            cntl.Reset();
-            keyvalue::GetRequest read_request;
-            keyvalue::GetResponse read_response;
-            printf("read\n");
-            std::string read_test_key = "test_key" + std::to_string(del_index);
-            read_request.set_key(read_test_key);
-            stub.get(&cntl, &read_request, &read_response, NULL);
-
-
-            if (cntl.Failed())
-            {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << " : " << cntl.ErrorText();
-                // Clear leadership since this RPC failed.
-                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
-                bthread_usleep(FLAGS_timeout_ms * 1000L);
-                continue;
-            }
-
-            if (!read_response.success())
-            {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << ", redirecting to "
-                             << (read_response.has_redirect()
-                                     ? read_response.redirect()
-                                     : "nowhere");
-                // Update route table since we have redirect information
-                braft::rtb::update_leader(FLAGS_group, read_response.redirect());
-                continue;
-            }
-            g_latency_recorder << cntl.latency_us();
-            if (FLAGS_log_each_request)
-            {
-                LOG(INFO) << "Received read response from " << leader
-                          << " value=" << read_response.value()
-                          << " latency=" << cntl.latency_us();
-                bthread_usleep(1000L * 1000L);
-            }
-        }
-        else
+        else if(OP_READ == cl_args->op)
         {
             keyvalue::GetRequest request;
             keyvalue::GetResponse response;
 
             printf("read\n");
-            std::string read_test_key = "test_key" + std::to_string(read_index);
+            std::string read_test_key = cl_args->key;
             request.set_key(read_test_key);
             stub.get(&cntl, &request, &response, NULL);
 
@@ -286,6 +180,7 @@ static void *sender(void *arg)
                 bthread_usleep(1000L * 1000L);
             }
         }
+        break;
     }
     return NULL;
 }
@@ -296,9 +191,9 @@ int main(int argc, char *argv[])
     butil::AtExitManager exit_manager;
 
     struct client_args * cl_args = (struct client_args *) malloc(sizeof(struct client_args));
-    cl_args->key = FLAGS_key;
-    cl_args->value = FLAGS_value;
-    cl_args->op = FLAGS_op;
+    // cl_args->key = FLAGS_key;
+    // cl_args->value = FLAGS_value;
+    // cl_args->op = FLAGS_op;
     // Register configuration of target group to RouteTable
     if (braft::rtb::update_configuration(FLAGS_group, FLAGS_conf) != 0)
     {
@@ -306,54 +201,72 @@ int main(int argc, char *argv[])
                    << " of group " << FLAGS_group;
         return -1;
     }
-
     std::vector<bthread_t> tids;
-    tids.resize(FLAGS_thread_num);
-    if (!FLAGS_use_bthread)
-    {
-        for (int i = 0; i < FLAGS_thread_num; ++i)
-        {
-            if (pthread_create(&tids[i], NULL, sender, cl_args) != 0)
-            {
-                LOG(ERROR) << "Fail to create pthread";
-                return -1;
-            }
+    while (!brpc::IsAskedToQuit()){
+        int cin_op;
+        std::string cin_key;
+        std::string cin_value;
+        std::cout << "Enter op code (0, 1, 2 or 3): ";
+        std::cin >> cin_op;
+        cl_args->op = cin_op;
+        std::cout << "Enter the key :";
+        std::cin >> cin_key;
+        cl_args->key = cin_key;
+        if((OP_READ != cin_op) &&  (OP_DELETE != cin_op)){
+            std::cout << "Enter the value :";
+            std::cin >> cin_value;
+            cl_args->value = cin_value;
         }
-    }
-    else
-    {
-        for (int i = 0; i < FLAGS_thread_num; ++i)
-        {
-            if (bthread_start_background(&tids[i], NULL, sender, NULL) != 0)
-            {
-                LOG(ERROR) << "Fail to create bthread";
-                return -1;
-            }
-        }
-    }
-
-    while (!brpc::IsAskedToQuit())
-    {
-        sleep(1);
-        LOG_IF(INFO, !FLAGS_log_each_request)
-            << "Sending Request to " << FLAGS_group
-            << " (" << FLAGS_conf << ')'
-            << " at qps=" << g_latency_recorder.qps(1)
-            << " latency=" << g_latency_recorder.latency(1);
-    }
-
-    LOG(INFO) << "Counter client is going to quit";
-    for (int i = 0; i < FLAGS_thread_num; ++i)
-    {
+        tids.resize(FLAGS_thread_num);
         if (!FLAGS_use_bthread)
         {
-            pthread_join(tids[i], NULL);
+            for (int i = 0; i < FLAGS_thread_num; ++i)
+            {
+                if (pthread_create(&tids[i], NULL, sender, cl_args) != 0)
+                {
+                    LOG(ERROR) << "Fail to create pthread";
+                    return -1;
+                }
+            }
         }
         else
         {
-            bthread_join(tids[i], NULL);
+            for (int i = 0; i < FLAGS_thread_num; ++i)
+            {
+                if (bthread_start_background(&tids[i], NULL, sender, cl_args) != 0)
+                {
+                    LOG(ERROR) << "Fail to create bthread";
+                    return -1;
+                }
+            }
         }
+
+        // Wait until the threads end
+        for (int i = 0; i < FLAGS_thread_num; ++i)
+            {
+                if (!FLAGS_use_bthread)
+                {
+                    pthread_join(tids[i], NULL);
+                }
+                else
+                {
+                    bthread_join(tids[i], NULL);
+                }
+            }
     }
+
+    // while (!brpc::IsAskedToQuit())
+    // {
+    //     sleep(1);
+    //     LOG_IF(INFO, !FLAGS_log_each_request)
+    //         << "Sending Request to " << FLAGS_group
+    //         << " (" << FLAGS_conf << ')'
+    //         << " at qps=" << g_latency_recorder.qps(1)
+    //         << " latency=" << g_latency_recorder.latency(1);
+    // }
+
+    LOG(INFO) << "Counter client is going to quit";
+
     free(cl_args);
     return 0;
 }

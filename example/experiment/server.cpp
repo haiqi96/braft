@@ -268,7 +268,7 @@ namespace keyvalue
 
                 // Now the log has been parsed. Update this state machine by this
                 // operation.
-                if(OP_WRITE == op) {
+                if(OP_WRITE == op || OP_MODIFY == op) {
                     rocksdb::Status status = _db->Put(rocksdb::WriteOptions(), key, value);
                     if(status.ok()) {
                         LOG(INFO) << "Successfully inserted " << key << " : " << value << "pair";
