@@ -57,6 +57,6 @@ ${VALGRIND} ./counter_client \
         --crash_on_fatal_log=${FLAGS_crash_on_fatal} \
         --log_each_request=${FLAGS_log_each_request} \
         --thread_num=${FLAGS_thread_num} \
-        --group= "${group_prefix}${i}"\
+        --group="${group_prefix}${i}"\
         --use_bthread=${FLAGS_use_bthread} \
 

@@ -20,10 +20,12 @@
 #include <braft/util.h>
 #include <braft/route_table.h>
 #include "keyvalue.pb.h"
+#include <boost/functional/hash.hpp>
 #include "OPcode.h"
 
 DEFINE_bool(log_each_request, false, "Print log for each request");
 DEFINE_bool(use_bthread, false, "Use bthread to send requests");
+DEFINE_int32(num_groups, 1, "Number of replication groups");
 DEFINE_int32(update_percentage, 50, "Percentage of update_database");
 DEFINE_int64(added_by, 1, "Num added to each peer");
 DEFINE_int32(thread_num, 1, "Number of threads sending requests");
@@ -42,17 +44,30 @@ struct client_args{
     std::string value = "";
 };
 
+// int stringHash(std::string const& s) {
+//     unsigned long hash = 5381;
+//     for (auto c : s) {
+//         hash = (hash << 5) + hash + c; /* hash * 33 + c */
+//     }
+//     return hash;
+// }
+
 static void *sender(void *arg)
 {
     int read_index = 0;
     int write_index = 0;
     struct client_args * cl_args = (struct client_args *)arg;
     std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
+    
+    // Send to the leader group
+    boost::hash<std::string> stringHash;
+    int hash_code  = stringHash(cl_args->key);
+    std::string replica_group = "replica_" + std::to_string(hash_code % FLAGS_num_groups);
     while (!brpc::IsAskedToQuit())
     {
         braft::PeerId leader;
         // Select leader of the target group from RouteTable
-        if (braft::rtb::select_leader(FLAGS_group, &leader) != 0)
+        if (braft::rtb::select_leader(replica_group, &leader) != 0)
         {
             // Leader is unknown in RouteTable. Ask RouteTable to refresh leader
             // by sending RPCs.
@@ -206,8 +221,12 @@ int main(int argc, char *argv[])
         int cin_op;
         std::string cin_key;
         std::string cin_value;
-        std::cout << "Enter op code (0, 1, 2 or 3): ";
+        std::cout << "Enter op code (0, 1, 2 or 3) press -1 to exit: ";
         std::cin >> cin_op;
+        if(cin_op == -1){
+            free(cl_args);  
+            return 0;
+        }
         cl_args->op = cin_op;
         std::cout << "Enter the key :";
         std::cin >> cin_key;

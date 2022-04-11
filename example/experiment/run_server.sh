@@ -67,7 +67,7 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
             -raft_max_segment_size=${FLAGS_max_segment_size} \
             -raft_sync=${FLAGS_sync} \
             -port=$((${FLAGS_port}+i*${FLAGS_server_num}+j)) \
-            -group= "${group_prefix}${i}"\
+            -group="${group_prefix}${i}"\
             -conf="${raft_peers}" > std.log 2>&1 &
         cd ../..
     done
