@@ -16,12 +16,24 @@
 #include <bthread/bthread.h>
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include <brpc/server.h>
 #include <braft/raft.h>
 #include <braft/util.h>
 #include <braft/route_table.h>
 #include "keyvalue.pb.h"
 #include <boost/functional/hash.hpp>
 #include "OPcode.h"
+#include "echo.pb.h"
+
+// This is for the RPC server
+DEFINE_bool(echo_attachment, false, "Echo attachment as well");
+DEFINE_int32(port, 8000, "TCP Port of this server");
+DEFINE_string(listen_addr, "", "Server listen address, may be IPV4/IPV6/UDS."
+            " If this is set, the flag port will be ignored");
+DEFINE_int32(idle_timeout_s, -1, "Connection will be closed if there is no "
+             "read/write operations during the last `idle_timeout_s'");
+DEFINE_int32(logoff_ms, 2000, "Maximum duration of server's LOGOFF state "
+             "(waiting for client to close connection before server stops)");
 
 DEFINE_bool(log_each_request, false, "Print log for each request");
 DEFINE_bool(use_bthread, false, "Use bthread to send requests");
@@ -52,41 +64,39 @@ struct client_args{
 
 static void *dummy_sender(void *arg)
 {
-
     struct client_args * cl_args = (struct client_args *)arg;
-    std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
-    
     // Send to the leader group
     boost::hash<std::string> stringHash;
-    int hash_code  = stringHash(cl_args->key);
+    std::string test_key = "";
+    int hash_code  = stringHash(test_key);
     std::string replica_group = "replica_" + std::to_string(hash_code % FLAGS_num_groups);
     while (!brpc::IsAskedToQuit())
     {
+        unsigned op_code = cl_args->op;
         // For any non-read operation call the stub.insert rpc call
-        if (OP_WRITE == cl_args->op || OP_DELETE == cl_args->op || OP_MODIFY == cl_args->op)
+        if (OP_WRITE == op_code || OP_DELETE == op_code || OP_MODIFY == op_code)
         {
             keyvalue::InsertRequest request;
             keyvalue::InsertResponse response;
 
-            std::string test_key = cl_args->key;
-            std::string test_value = cl_args->value;
+            std::string test_value = "";
             request.set_key(test_key);
-            request.set_op(cl_args->op);
+            request.set_op(op_code);
             request.set_value(test_value);
-            if (OP_DELETE == cl_args->op){
+            if (OP_DELETE == op_code){
                 std::cout << "delete " << test_key << std::endl;
             }
             else {
-                std::cout << "write " << test_key << " : " <<  test_value << std::endl;
+                std::cout << "write " << test_key << " : " << std::endl;
             }
         } 
-        else if(OP_READ == cl_args->op)
+        else if(OP_READ == op_code)
         {
             keyvalue::GetRequest request;
             keyvalue::GetResponse response;
 
-            std::string read_test_key = cl_args->key;
-            printf("read key %s\n", read_test_key.c_str());
+            std::string read_test_key = test_key;
+            printf("read key %s\n");
         }
         // If either operation is successful, break out of the loop and accept another op
         break;
@@ -240,15 +250,79 @@ static void *sender(void *arg)
     return NULL;
 }
 
+// Your implementation of example::EchoService
+// Notice that implementing brpc::Describable grants the ability to put
+// additional information in /status.
+namespace example {
+class EchoServiceImpl : public EchoService {
+public:
+    EchoServiceImpl() {};
+    virtual ~EchoServiceImpl() {};
+    virtual void Echo(google::protobuf::RpcController* cntl_base,
+                      const EchoRequest* request,
+                      EchoResponse* response,
+                      google::protobuf::Closure* done) {
+        // This object helps you to call done->Run() in RAII style. If you need
+        // to process the request asynchronously, pass done_guard.release().
+        brpc::ClosureGuard done_guard(done);
+
+        struct client_args cl_args;
+        cl_args.op = request->op();
+        cl_args.key = request->key();
+        cl_args.value = request->value();
+        brpc::Controller* cntl =
+            static_cast<brpc::Controller*>(cntl_base);
+        std::vector<bthread_t> tids;
+        // The purpose of following logs is to help you to understand
+        // how clients interact with servers more intuitively. You should 
+        // remove these logs in performance-sensitive servers.
+        tids.resize(FLAGS_thread_num);
+        if (!FLAGS_use_bthread)
+        {
+            for (int i = 0; i < FLAGS_thread_num; ++i)
+            {
+                if (pthread_create(&tids[i], NULL, dummy_sender, &cl_args) != 0)
+                {
+                    LOG(ERROR) << "Fail to create pthread";
+                    response->set_status(STATUS_KERROR);
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < FLAGS_thread_num; ++i)
+            {
+                if (bthread_start_background(&tids[i], NULL, dummy_sender, &cl_args) != 0)
+                {
+                    LOG(ERROR) << "Fail to create bthread";
+                    response->set_status(STATUS_KERROR);
+                }
+            }
+        }
+
+        // Wait until the threads end
+        for (int i = 0; i < FLAGS_thread_num; ++i)
+        {
+            if (!FLAGS_use_bthread)
+            {
+                pthread_join(tids[i], NULL);
+            }
+            else
+            {
+                bthread_join(tids[i], NULL);
+            }
+        }
+        response->set_status(STATUS_KOK);
+    }
+};
+}  // namespace example
+
 
 // Back up this main function in case we decide we need it
 int main(int argc, char *argv[])
 {
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
     butil::AtExitManager exit_manager;
-
-    // cl_args stored in heap because this pointer is passed to the sender thread
-    struct client_args * cl_args = (struct client_args *) malloc(sizeof(struct client_args));
 
     // Register configuration of target group to RouteTable
     if (braft::rtb::update_configuration(FLAGS_group, FLAGS_conf) != 0)
@@ -257,75 +331,39 @@ int main(int argc, char *argv[])
                    << " of group " << FLAGS_group;
         return -1;
     }
-    std::vector<bthread_t> tids;
-
-    // Keep accepting operations until exit
-    while (!brpc::IsAskedToQuit()){
-        // Command line interface to accept arguments: op, key-value pair
-        int cin_op;
-        std::string cin_key;
-        std::string cin_value;
-        std::cout << "Enter op code (0, 1, 2 or 3) press -1 to exit: ";
-        std::cin >> cin_op;
-
-        // If input op is -1, exit the program
-        if(cin_op == -1){
-            free(cl_args);  
-            return 0;
-        }
-        cl_args->op = cin_op;
-        std::cout << "Enter the key :";
-        std::cin >> cin_key;
-        cl_args->key = cin_key;
-        // Read and Delete operations don't require a value
-        if((OP_READ != cin_op) &&  (OP_DELETE != cin_op)){
-            std::cout << "Enter the value :";
-            std::cin >> cin_value;
-            cl_args->value = cin_value;
-        }
-
-
-        tids.resize(FLAGS_thread_num);
-        if (!FLAGS_use_bthread)
-        {
-            for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (pthread_create(&tids[i], NULL, dummy_sender, cl_args) != 0)
-                {
-                    LOG(ERROR) << "Fail to create pthread";
-                    return -1;
-                }
-            }
-        }
-        else
-        {
-            for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (bthread_start_background(&tids[i], NULL, dummy_sender, cl_args) != 0)
-                {
-                    LOG(ERROR) << "Fail to create bthread";
-                    return -1;
-                }
-            }
-        }
-
-        // Wait until the threads end
-        for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (!FLAGS_use_bthread)
-                {
-                    pthread_join(tids[i], NULL);
-                }
-                else
-                {
-                    bthread_join(tids[i], NULL);
-                }
-            }
+    brpc::Server server;
+    example::EchoServiceImpl echo_service_impl;
+    // Add the service into server. Notice the second parameter, because the
+    // service is put on stack, we don't want server to delete it, otherwise
+    // use brpc::SERVER_OWNS_SERVICE.
+    if (server.AddService(&echo_service_impl, 
+                          brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
+        LOG(ERROR) << "Fail to add service";
+        return -1;
     }
+
+    butil::EndPoint point;
+    if (!FLAGS_listen_addr.empty()) {
+        if (butil::str2endpoint(FLAGS_listen_addr.c_str(), &point) < 0) {
+            LOG(ERROR) << "Invalid listen address:" << FLAGS_listen_addr;
+            return -1;
+        }
+    } else {
+        point = butil::EndPoint(butil::IP_ANY, FLAGS_port);
+    }
+    // Start the server.
+    brpc::ServerOptions options;
+    options.idle_timeout_sec = FLAGS_idle_timeout_s;
+    if (server.Start(point, &options) != 0) {
+        LOG(ERROR) << "Fail to start EchoServer";
+        return -1;
+    }
+
+    // Wait until Ctrl-C is pressed, then Stop() and Join() the server.
+    server.RunUntilAskedToQuit();
+
     // User pressed Ctrl + C
     LOG(INFO) << "Counter client is going to quit";
-
-    free(cl_args);
     return 0;
 }
 
