@@ -32,6 +32,7 @@ DEFINE_int32(election_timeout_ms, 5000,
              "Start election in such milliseconds if disconnect with the leader");
 DEFINE_int32(port, 8100, "Listen port of this peer");
 DEFINE_int32(snapshot_interval, 30, "Interval between each snapshot");
+DEFINE_string(ip, "127.0.0.1", "Public IP of the server");
 DEFINE_string(conf, "", "Initial configuration of the replication group");
 DEFINE_string(data_path, "./data", "Path of data stored on");
 DEFINE_string(group, "Counter", "Id of the replication group");
@@ -475,6 +476,8 @@ int main(int argc, char *argv[])
         LOG(ERROR) << "Fail to add service";
         return -1;
     }
+
+    std::string ip_and_port = FLAGS_ip + ":" + std::to_string(FLAGS_port);
     // raft can share the same RPC server. Notice the second parameter, because
     // adding services into a running server is not allowed and the listen
     // address of this server is impossible to get before the server starts. You

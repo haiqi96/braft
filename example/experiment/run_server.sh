@@ -31,6 +31,7 @@ DEFINE_integer port 8100 "Port of the first server"
 DEFINE_integer partition_num 3 'Number of key range partitions'
 
 my_ip=$(hostname -I)
+my_ip=`echo $my_ip | sed 's/ *$//g'`
 declare -a group_default_ports=('8100' '8101' '8102')
 
 for ((i=0; i<$FLAGS_partition_num; ++i)); do
@@ -54,9 +55,6 @@ eval set -- "${FLAGS_ARGV}"
 
 # The alias for printing to stderr
 alias error=">&2 echo counter: "
-
-# hostname prefers ipv6
-IP=`hostname -i | awk '{print $NF}'`
 
 if [ "$FLAGS_valgrind" == "true" ] && [ $(which valgrind) ] ; then
     VALGRIND="valgrind --tool=memcheck --leak-check=full"
@@ -83,7 +81,12 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
     group_participants=""
 
     for ((j=0; j<$FLAGS_server_num; ++j)); do
-        participant_ip=${participants[$j]}
+        if [ "$my_ip" == "${participants[$j]}" ]
+        then
+            participant_ip="127.0.1.1"
+        else
+            participant_ip=${participants[$j]}
+        fi
         group_participants="${group_participants}${participant_ip}:$((${group_port})):0,"
     done
 
@@ -100,6 +103,7 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
         -crash_on_fatal_log=${FLAGS_crash_on_fatal} \
         -raft_max_segment_size=${FLAGS_max_segment_size} \
         -raft_sync=${FLAGS_sync} \
+        -ip="${my_ip}" \
         -port="${group_port}" \
         -group="${group_name}" \
         -rocksdb_path="${group_rocksdb_path}" \
