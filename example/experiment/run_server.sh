@@ -83,7 +83,7 @@ for ((i=0; i<$FLAGS_partition_num; ++i)); do
     for ((j=0; j<$FLAGS_server_num; ++j)); do
         if [ "$my_ip" == "${participants[$j]}" ]
         then
-            participant_ip="127.0.1.1"
+            participant_ip=${participants[$j]}
         else
             participant_ip=${participants[$j]}
         fi

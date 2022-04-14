@@ -78,7 +78,10 @@ namespace keyvalue
 
         int start()
         {
-            butil::EndPoint addr(butil::my_ip(), FLAGS_port);
+            butil::ip_t my_ip;
+            butil::str2ip(FLAGS_ip.data(), &my_ip);
+            butil::EndPoint addr(my_ip, FLAGS_port);
+
             braft::NodeOptions node_options;
             if (node_options.initial_conf.parse_from(FLAGS_conf) != 0)
             {
@@ -482,7 +485,10 @@ int main(int argc, char *argv[])
     // adding services into a running server is not allowed and the listen
     // address of this server is impossible to get before the server starts. You
     // have to specify the address of the server.
-    if (braft::add_service(&server, FLAGS_port) != 0)
+    butil::ip_t my_ip;
+    butil::str2ip(FLAGS_ip.data(), &my_ip);
+    butil::EndPoint addr(my_ip, FLAGS_port);
+    if (braft::add_service(&server, addr) != 0)
     {
         LOG(ERROR) << "Fail to add raft service";
         return -1;
@@ -493,7 +499,7 @@ int main(int argc, char *argv[])
     // clients.
     // Notice the default options of server is used here. Check out details from
     // the doc of brpc if you would like change some options;
-    if (server.Start(FLAGS_port, NULL) != 0)
+    if (server.Start(ip_and_port.data(), NULL) != 0)
     {
         LOG(ERROR) << "Fail to start Server";
         return -1;
