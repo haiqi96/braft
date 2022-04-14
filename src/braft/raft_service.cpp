@@ -45,8 +45,10 @@ void RaftServiceImpl::pre_vote(google::protobuf::RpcController* cntl_base,
     scoped_refptr<NodeImpl> node_ptr = 
                         global_node_manager->get(request->group_id(), peer_id);
     NodeImpl* node = node_ptr.get();
+    std::string message;
+    message = "peer_id not exist0" + request->peer_id();
     if (!node) {
-        cntl->SetFailed(ENOENT, "peer_id not exist");
+        cntl->SetFailed(ENOENT, message.data());
         return;
     }
 

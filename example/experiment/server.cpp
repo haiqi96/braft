@@ -81,6 +81,8 @@ namespace keyvalue
             butil::ip_t my_ip;
             butil::str2ip(FLAGS_ip.data(), &my_ip);
             butil::EndPoint addr(my_ip, FLAGS_port);
+            
+            LOG(ERROR) << "my ip isssss:" << butil::ip2str(my_ip);
 
             braft::NodeOptions node_options;
             if (node_options.initial_conf.parse_from(FLAGS_conf) != 0)
@@ -480,7 +482,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    std::string ip_and_port = FLAGS_ip + ":" + std::to_string(FLAGS_port);
+ 
     // raft can share the same RPC server. Notice the second parameter, because
     // adding services into a running server is not allowed and the listen
     // address of this server is impossible to get before the server starts. You
@@ -499,6 +501,7 @@ int main(int argc, char *argv[])
     // clients.
     // Notice the default options of server is used here. Check out details from
     // the doc of brpc if you would like change some options;
+    std::string ip_and_port = FLAGS_ip + ":" + std::to_string(FLAGS_port);
     if (server.Start(ip_and_port.data(), NULL) != 0)
     {
         LOG(ERROR) << "Fail to start Server";
