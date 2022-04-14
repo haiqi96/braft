@@ -64,11 +64,8 @@ for ((i=0; i<$FLAGS_group_num; ++i)); do
 done
 
 #trim spaces
-all_group_participants= ${all_group_participants} | xargs
-groups= ${all_group_participants} | xargs
-
-echo ${all_group_participants}
-echo ${groups}
+all_group_participants=`echo $all_group_participants | sed 's/ *$//g'`
+groups=`echo $groups | sed 's/ *$//g'`
 
 ${VALGRIND} ./counter_client \
         --update_percentage=${FLAGS_update_percentage} \
