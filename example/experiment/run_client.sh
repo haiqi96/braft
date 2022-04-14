@@ -50,7 +50,7 @@ for ((j=0; j<$FLAGS_server_num; ++j)); do
     group_participants="${group_participants}${participant_ip}:$((${group_port})):0,"
 done
 
-export TCMALLOC_SAMPLE_PARAMETER=524288
+#export TCMALLOC_SAMPLE_PARAMETER=524288
 
 group="replica_0"
 
