@@ -51,6 +51,7 @@ struct client_args{
     int op;
     std::string key;
     std::string value = "";
+    std::string replica_group;
 };
 
 // int stringHash(std::string const& s) {
@@ -110,20 +111,16 @@ static void *sender(void *arg)
     struct client_args * cl_args = (struct client_args *)arg;
     std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
     
-    // Send to the leader group
-    boost::hash<std::string> stringHash;
-    int hash_code  = stringHash(cl_args->key);
-    std::string replica_group = "replica_" + std::to_string(hash_code % FLAGS_num_groups);
     while (!brpc::IsAskedToQuit())
     {
         braft::PeerId leader;
         // Select leader of the target group from RouteTable
-        if (braft::rtb::select_leader(replica_group, &leader) != 0)
+        if (braft::rtb::select_leader(cl_args->replica_group, &leader) != 0)
         {
             // Leader is unknown in RouteTable. Ask RouteTable to refresh leader
             // by sending RPCs.
             butil::Status st = braft::rtb::refresh_leader(
-                FLAGS_group, FLAGS_timeout_ms);
+                cl_args->replica_group, FLAGS_timeout_ms);
             if (!st.ok())
             {
                 // Not sure about the leader, sleep for a while and the ask again.
@@ -256,7 +253,7 @@ static void *sender(void *arg)
 namespace example {
 class EchoServiceImpl : public EchoService {
 public:
-    EchoServiceImpl() {};
+    EchoServiceImpl(std::vector<std::string> group_names) : _group_names(group_names) {};
     virtual ~EchoServiceImpl() {};
     virtual void Echo(google::protobuf::RpcController* cntl_base,
                       const EchoRequest* request,
@@ -266,10 +263,19 @@ public:
         // to process the request asynchronously, pass done_guard.release().
         brpc::ClosureGuard done_guard(done);
 
+        // Send to the leader group
+
+
         struct client_args cl_args;
         cl_args.op = request->op();
         cl_args.key = request->key();
         cl_args.value = request->value();
+
+        boost::hash<std::string> stringHash;
+        int hash_code  = stringHash(cl_args.key);
+        std::string replica_group = _group_names[hash_code % FLAGS_num_groups];
+        cl_args.replica_group = replica_group;
+
         brpc::Controller* cntl =
             static_cast<brpc::Controller*>(cntl_base);
         std::vector<bthread_t> tids;
@@ -281,7 +287,7 @@ public:
         {
             for (int i = 0; i < FLAGS_thread_num; ++i)
             {
-                if (pthread_create(&tids[i], NULL, dummy_sender, &cl_args) != 0)
+                if (pthread_create(&tids[i], NULL, sender, &cl_args) != 0)
                 {
                     LOG(ERROR) << "Fail to create pthread";
                     response->set_status(STATUS_KERROR);
@@ -292,7 +298,7 @@ public:
         {
             for (int i = 0; i < FLAGS_thread_num; ++i)
             {
-                if (bthread_start_background(&tids[i], NULL, dummy_sender, &cl_args) != 0)
+                if (bthread_start_background(&tids[i], NULL, sender, &cl_args) != 0)
                 {
                     LOG(ERROR) << "Fail to create bthread";
                     response->set_status(STATUS_KERROR);
@@ -314,6 +320,8 @@ public:
         }
         response->set_status(STATUS_KOK);
     }
+private:
+    std::vector<std::string> _group_names{};
 };
 }  // namespace example
 
@@ -324,15 +332,49 @@ int main(int argc, char *argv[])
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
     butil::AtExitManager exit_manager;
 
-    // Register configuration of target group to RouteTable
-    if (braft::rtb::update_configuration(FLAGS_group, FLAGS_conf) != 0)
-    {
-        LOG(ERROR) << "Fail to register configuration " << FLAGS_conf
-                   << " of group " << FLAGS_group;
+    std::string space_delimiter = " ";
+    std::vector<std::string> group_names{};
+    std::vector<std::string> group_peers{};
+    
+    std::string group_names_raw = FLAGS_group;
+    std::string group_peers_raw = FLAGS_conf;
+
+    char space_char = ' ';
+    std::string word;
+
+
+    std::stringstream name_sstream(group_names_raw);
+    while (std::getline(name_sstream, word, space_char)){
+        LOG(ERROR) << word;
+        group_names.push_back(word);
+    }
+
+    std::stringstream peer_sstream(group_peers_raw);
+    while (std::getline(peer_sstream, word, space_char)){
+        LOG(ERROR) << word;
+        group_peers.push_back(word);
+    }
+
+    if (group_names.size() != group_peers.size()) {
+        LOG(ERROR) << "Total groups not equal to total of grouped peers ";
         return -1;
     }
+    
+    LOG(ERROR) << group_names.size();
+
+    for (size_t i = 1; i < group_names.size(); ++i) {
+        LOG(ERROR) << group_names[i];
+        LOG(ERROR) << group_peers[i];
+        int status = braft::rtb::update_configuration(group_names[i], group_peers[i]);
+        if (status != 0){
+            LOG(ERROR) << "Fail to register configuration " << group_peers[i]
+                       << " of group " << group_names[i];
+            return -1;
+        }
+    }
+
     brpc::Server server;
-    example::EchoServiceImpl echo_service_impl;
+    example::EchoServiceImpl echo_service_impl(group_names);
     // Add the service into server. Notice the second parameter, because the
     // service is put on stack, we don't want server to delete it, otherwise
     // use brpc::SERVER_OWNS_SERVICE.
