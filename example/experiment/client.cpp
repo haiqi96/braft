@@ -109,7 +109,7 @@ static void *sender(void *arg)
 {
 
     struct client_args * cl_args = (struct client_args *)arg;
-    std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
+    //std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
     
     while (!brpc::IsAskedToQuit())
     {
@@ -155,12 +155,12 @@ static void *sender(void *arg)
             request.set_key(test_key);
             request.set_op(cl_args->op);
             request.set_value(test_value);
-            if (OP_DELETE == cl_args->op){
-                std::cout << "delete " << test_key << std::endl;
-            }
-            else {
-                std::cout << "write " << test_key << " : " <<  test_value << std::endl;
-            }
+            // if (OP_DELETE == cl_args->op){
+            //     std::cout << "delete " << test_key << std::endl;
+            // }
+            // else {
+            //     std::cout << "write " << test_key << " : " <<  test_value << std::endl;
+            // }
             stub.insert(&cntl, &request, &response, NULL);
 
             if (cntl.Failed())
@@ -188,15 +188,15 @@ static void *sender(void *arg)
             g_latency_recorder << cntl.latency_us();
             if (FLAGS_log_each_request)
             {
-                if (OP_DELETE == cl_args->op){
-                    LOG(INFO) << "Received write response from " << leader
-                          << ", deleted successfully";
-                }
-                else {
-                    LOG(INFO) << "Received write response from " << leader
-                          << ", insert successfully";
-                }
-                bthread_usleep(1000L * 1000L);
+                // if (OP_DELETE == cl_args->op){
+                //    LOG(INFO) << "Received write response from " << leader
+                //          << ", deleted successfully";
+                // }
+                // else {
+                //    LOG(INFO) << "Received write response from " << leader
+                //          << ", insert successfully";
+                // }
+                // bthread_usleep(1000L * 1000L);
             }
         } 
         else if(OP_READ == cl_args->op)
@@ -204,7 +204,7 @@ static void *sender(void *arg)
             keyvalue::GetRequest request;
             keyvalue::GetResponse response;
 
-            printf("read\n");
+            //printf("read\n");
             std::string read_test_key = cl_args->key;
             request.set_key(read_test_key);
             stub.get(&cntl, &request, &response, NULL);
@@ -230,15 +230,15 @@ static void *sender(void *arg)
                 braft::rtb::update_leader(FLAGS_group, response.redirect());
                 continue;
             }
-            std::cout << "read " << read_test_key << " : " <<  response.value() << std::endl;
+            //std::cout << "read " << read_test_key << " : " <<  response.value() << std::endl;
 
             g_latency_recorder << cntl.latency_us();
             if (FLAGS_log_each_request)
             {
-                LOG(INFO) << "Received read response from " << leader
-                          << " value=" << response.value()
-                          << " latency=" << cntl.latency_us();
-                bthread_usleep(1000L * 1000L);
+                // LOG(INFO) << "Received read response from " << leader
+                //           << " value=" << response.value()
+                //           << " latency=" << cntl.latency_us();
+                // bthread_usleep(1000L * 1000L);
             }
         }
         // If either operation is successful, break out of the loop and accept another op
@@ -283,41 +283,42 @@ public:
         // how clients interact with servers more intuitively. You should 
         // remove these logs in performance-sensitive servers.
         tids.resize(FLAGS_thread_num);
-        if (!FLAGS_use_bthread)
-        {
-            for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (pthread_create(&tids[i], NULL, sender, &cl_args) != 0)
-                {
-                    LOG(ERROR) << "Fail to create pthread";
-                    response->set_status(STATUS_KERROR);
-                }
-            }
-        }
-        else
-        {
-            for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (bthread_start_background(&tids[i], NULL, sender, &cl_args) != 0)
-                {
-                    LOG(ERROR) << "Fail to create bthread";
-                    response->set_status(STATUS_KERROR);
-                }
-            }
-        }
+        sender(&cl_args);
+        // if (!FLAGS_use_bthread)
+        // {
+        //     for (int i = 0; i < FLAGS_thread_num; ++i)
+        //     {
+        //         if (pthread_create(&tids[i], NULL, sender, &cl_args) != 0)
+        //         {
+        //             LOG(ERROR) << "Fail to create pthread";
+        //             response->set_status(STATUS_KERROR);
+        //         }
+        //     }
+        // }
+        // else
+        // {
+        //     for (int i = 0; i < FLAGS_thread_num; ++i)
+        //     {
+        //         if (bthread_start_background(&tids[i], NULL, sender, &cl_args) != 0)
+        //         {
+        //             LOG(ERROR) << "Fail to create bthread";
+        //             response->set_status(STATUS_KERROR);
+        //         }
+        //     }
+        // }
 
-        // Wait until the threads end
-        for (int i = 0; i < FLAGS_thread_num; ++i)
-        {
-            if (!FLAGS_use_bthread)
-            {
-                pthread_join(tids[i], NULL);
-            }
-            else
-            {
-                bthread_join(tids[i], NULL);
-            }
-        }
+        // // Wait until the threads end
+        // for (int i = 0; i < FLAGS_thread_num; ++i)
+        // {
+        //     if (!FLAGS_use_bthread)
+        //     {
+        //         pthread_join(tids[i], NULL);
+        //     }
+        //     else
+        //     {
+        //         bthread_join(tids[i], NULL);
+        //     }
+        // }
         response->set_status(STATUS_KOK);
     }
 private:
@@ -388,6 +389,8 @@ int main(int argc, char *argv[])
     }
     // Start the server.
     brpc::ServerOptions options;
+    options.num_threads = 20;
+    options.max_concurrency = 800;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
     if (server.Start(point, &options) != 0) {
         LOG(ERROR) << "Fail to start EchoServer";
