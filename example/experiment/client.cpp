@@ -332,9 +332,8 @@ int main(int argc, char *argv[])
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
     butil::AtExitManager exit_manager;
 
-    std::string space_delimiter = " ";
-    std::vector<std::string> group_names{};
-    std::vector<std::string> group_peers{};
+    std::vector<std::string> group_names;
+    std::vector<std::string> group_peers;
     
     std::string group_names_raw = FLAGS_group;
     std::string group_peers_raw = FLAGS_conf;
@@ -345,13 +344,11 @@ int main(int argc, char *argv[])
 
     std::stringstream name_sstream(group_names_raw);
     while (std::getline(name_sstream, word, space_char)){
-        LOG(ERROR) << word;
         group_names.push_back(word);
     }
 
     std::stringstream peer_sstream(group_peers_raw);
     while (std::getline(peer_sstream, word, space_char)){
-        LOG(ERROR) << word;
         group_peers.push_back(word);
     }
 
@@ -359,12 +356,8 @@ int main(int argc, char *argv[])
         LOG(ERROR) << "Total groups not equal to total of grouped peers ";
         return -1;
     }
-    
-    LOG(ERROR) << group_names.size();
 
-    for (size_t i = 1; i < group_names.size(); ++i) {
-        LOG(ERROR) << group_names[i];
-        LOG(ERROR) << group_peers[i];
+    for (size_t i = 0; i < group_names.size(); ++i) {
         int status = braft::rtb::update_configuration(group_names[i], group_peers[i]);
         if (status != 0){
             LOG(ERROR) << "Fail to register configuration " << group_peers[i]
