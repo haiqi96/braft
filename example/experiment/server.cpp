@@ -502,7 +502,7 @@ int main(int argc, char *argv[])
     // Notice the default options of server is used here. Check out details from
     // the doc of brpc if you would like change some options;
     std::string ip_and_port = FLAGS_ip + ":" + std::to_string(FLAGS_port);
-    butil::EndPoint point = butil::EndPoint(butil::IP_ANY, FLAGS_port)
+    butil::EndPoint point = butil::EndPoint(butil::IP_ANY, FLAGS_port);
     if (server.Start(point, NULL) != 0)
     {
         LOG(ERROR) << "Fail to start Server";
