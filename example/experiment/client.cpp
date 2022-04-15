@@ -41,7 +41,7 @@ DEFINE_int32(num_groups, 1, "Number of replication groups");
 DEFINE_int32(update_percentage, 50, "Percentage of update_database");
 DEFINE_int64(added_by, 1, "Num added to each peer");
 DEFINE_int32(thread_num, 1, "Number of threads sending requests");
-DEFINE_int32(timeout_ms, 1000, "Timeout for each request");
+DEFINE_int32(timeout_ms, 10000, "Timeout for each request");
 DEFINE_string(conf, "", "Configuration of the raft group");
 DEFINE_string(group, "Counter", "Id of the replication group");
 
@@ -389,8 +389,8 @@ int main(int argc, char *argv[])
     }
     // Start the server.
     brpc::ServerOptions options;
-    options.num_threads = 20;
-    options.max_concurrency = 800;
+    options.num_threads = 4;
+    options.max_concurrency = 2000;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
     if (server.Start(point, &options) != 0) {
         LOG(ERROR) << "Fail to start EchoServer";
