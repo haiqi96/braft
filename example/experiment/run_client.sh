@@ -76,4 +76,5 @@ ${VALGRIND} ./counter_client \
         --thread_num=${FLAGS_thread_num} \
         --group="${groups}" \
         --use_bthread=${FLAGS_use_bthread} \
+        --num_groups=${FLAGS_group_num} 
 
