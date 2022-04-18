@@ -273,7 +273,8 @@ public:
 
         boost::hash<std::string> stringHash;
         int hash_code  = stringHash(cl_args.key);
-        std::string replica_group = _group_names[hash_code % FLAGS_num_groups];
+
+        std::string replica_group = _group_names[hash_code % _group_names.size()];
         cl_args.replica_group = replica_group;
 
         brpc::Controller* cntl =
