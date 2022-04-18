@@ -28,7 +28,7 @@ DEFINE_integer max_segment_size '8388608' 'Max segment size'
 DEFINE_integer server_num 3 'Number of servers'
 DEFINE_boolean clean 1 'Remove old "runtime" dir before running'
 DEFINE_integer port 8100 "Port of the first server"
-DEFINE_integer partition_num 1 'Number of key range partitions'
+DEFINE_integer partition_num 3 'Number of key range partitions'
 
 my_ip=$(hostname -I)
 my_ip=`echo $my_ip | sed 's/ *$//g'`

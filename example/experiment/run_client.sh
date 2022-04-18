@@ -26,7 +26,7 @@ DEFINE_integer update_percentage 50 'Percentage of fetch_add operation'
 DEFINE_integer bthread_concurrency '8' 'Number of worker pthreads'
 DEFINE_integer server_port 8100 "Port of the first server"
 DEFINE_integer server_num 3 'Number of nodes on each replication group'
-DEFINE_integer group_num 1 'Number of replication groups'
+DEFINE_integer group_num 3 'Number of replication groups'
 DEFINE_integer thread_num 1 'Number of sending thread'
 DEFINE_string crash_on_fatal 'true' 'Crash on fatal log'
 DEFINE_string log_each_request 'true' 'Print log for each request'
