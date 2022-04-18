@@ -24,7 +24,7 @@ if [[ ! -d "$mydir" ]]; then mydir="$PWD"; fi
 DEFINE_boolean clean 1 'Remove old "runtime" dir before running'
 DEFINE_integer update_percentage 50 'Percentage of fetch_add operation'
 DEFINE_integer bthread_concurrency '8' 'Number of worker pthreads'
-DEFINE_integer server_port 8100 "Port of the first server"
+DEFINE_integer server_port 8300 "Port of the first server"
 DEFINE_integer server_num 2 'Number of servers'
 DEFINE_integer thread_num 1 'Number of sending thread'
 DEFINE_string crash_on_fatal 'true' 'Crash on fatal log'
