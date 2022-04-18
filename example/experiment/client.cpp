@@ -61,66 +61,28 @@ struct client_args{
 //     return hash;
 // }
 
-
-static void *dummy_sender(void *arg)
-{
-    struct client_args * cl_args = (struct client_args *)arg;
-    // Send to the leader group
-    boost::hash<std::string> stringHash;
-    std::string test_key = "";
-    int hash_code  = stringHash(test_key);
-    std::string replica_group = "replica_" + std::to_string(hash_code % FLAGS_num_groups);
-    while (!brpc::IsAskedToQuit())
-    {
-        unsigned op_code = cl_args->op;
-        // For any non-read operation call the stub.insert rpc call
-        if (OP_WRITE == op_code || OP_DELETE == op_code || OP_MODIFY == op_code)
-        {
-            keyvalue::InsertRequest request;
-            keyvalue::InsertResponse response;
-
-            std::string test_value = "";
-            request.set_key(test_key);
-            request.set_op(op_code);
-            request.set_value(test_value);
-            if (OP_DELETE == op_code){
-                std::cout << "delete " << test_key << std::endl;
-            }
-            else {
-                std::cout << "write " << test_key << " : " << std::endl;
-            }
-        } 
-        else if(OP_READ == op_code)
-        {
-            keyvalue::GetRequest request;
-            keyvalue::GetResponse response;
-
-            std::string read_test_key = test_key;
-            printf("read key %s\n");
-        }
-        // If either operation is successful, break out of the loop and accept another op
-        break;
-    }
-    return NULL;
-}
-
 static void *sender(void *arg)
 {
 
     int read_index = 0;
     int write_index = 0;
     // Send to the leader group
+    printf("Sender start\n");
     std::string replica_group = "replica_0"; 
     while (!brpc::IsAskedToQuit())
     {
         braft::PeerId leader;
+        printf("Sender start ssss\n");
         // Select leader of the target group from RouteTable
         if (braft::rtb::select_leader(replica_group, &leader) != 0)
         {
+            printf("Sender start ssssADSD\n");
             // Leader is unknown in RouteTable. Ask RouteTable to refresh leader
             // by sending RPCs.
             butil::Status st = braft::rtb::refresh_leader(
-                replica_group, FLAGS_timeout_ms);
+                FLAGS_group, FLAGS_timeout_ms);
+
+            printf("refresh leader\n");
             if (!st.ok())
             {
                 // Not sure about the leader, sleep for a while and the ask again.
@@ -133,6 +95,7 @@ static void *sender(void *arg)
         // Now we known who is the leader, construct Stub and then sending
         // rpc
         brpc::Channel channel;
+        printf("12334\n");
         if (channel.Init(leader.addr, NULL) != 0)
         {
             LOG(ERROR) << "Fail to init channel to " << leader;
@@ -143,6 +106,7 @@ static void *sender(void *arg)
 
         brpc::Controller cntl;
         cntl.set_timeout_ms(FLAGS_timeout_ms);
+        printf("12334sss\n");
         if (butil::fast_rand_less_than(100) < (size_t)FLAGS_update_percentage)
         {
             keyvalue::InsertRequest request;
@@ -150,9 +114,11 @@ static void *sender(void *arg)
 
             std::string test_key = "test_key" + std::to_string(write_index);
             std::string test_value = "test_value" + std::to_string(write_index);
+            printf("ABC\n");
             request.set_key(test_key);
             request.set_value(test_value);
             request.set_op(OP_WRITE);
+            printf("DEF\n");
             if (OP_DELETE == request.op()){
                 std::cout << "delete " << test_key << std::endl;
             }
@@ -243,80 +209,12 @@ static void *sender(void *arg)
     return NULL;
 }
 
-// Your implementation of example::EchoService
-// Notice that implementing brpc::Describable grants the ability to put
-// additional information in /status.
-namespace example {
-class EchoServiceImpl : public EchoService {
-public:
-    EchoServiceImpl() {};
-    virtual ~EchoServiceImpl() {};
-    virtual void Echo(google::protobuf::RpcController* cntl_base,
-                      const EchoRequest* request,
-                      EchoResponse* response,
-                      google::protobuf::Closure* done) {
-        // This object helps you to call done->Run() in RAII style. If you need
-        // to process the request asynchronously, pass done_guard.release().
-        brpc::ClosureGuard done_guard(done);
-
-        struct client_args cl_args;
-        cl_args.op = request->op();
-        cl_args.key = request->key();
-        cl_args.value = request->value();
-        brpc::Controller* cntl =
-            static_cast<brpc::Controller*>(cntl_base);
-        std::vector<bthread_t> tids;
-        // The purpose of following logs is to help you to understand
-        // how clients interact with servers more intuitively. You should 
-        // remove these logs in performance-sensitive servers.
-        tids.resize(FLAGS_thread_num);
-        if (!FLAGS_use_bthread)
-        {
-            for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (pthread_create(&tids[i], NULL, dummy_sender, &cl_args) != 0)
-                {
-                    LOG(ERROR) << "Fail to create pthread";
-                    response->set_status(STATUS_KERROR);
-                }
-            }
-        }
-        else
-        {
-            for (int i = 0; i < FLAGS_thread_num; ++i)
-            {
-                if (bthread_start_background(&tids[i], NULL, dummy_sender, &cl_args) != 0)
-                {
-                    LOG(ERROR) << "Fail to create bthread";
-                    response->set_status(STATUS_KERROR);
-                }
-            }
-        }
-
-        // Wait until the threads end
-        for (int i = 0; i < FLAGS_thread_num; ++i)
-        {
-            if (!FLAGS_use_bthread)
-            {
-                pthread_join(tids[i], NULL);
-            }
-            else
-            {
-                bthread_join(tids[i], NULL);
-            }
-        }
-        response->set_status(STATUS_KOK);
-    }
-};
-}  // namespace example
-
-
 
 int main(int argc, char *argv[])
 {
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
     butil::AtExitManager exit_manager;
-
+    printf("ABC\n");
     // Register configuration of target group to RouteTable
     if (braft::rtb::update_configuration(FLAGS_group, FLAGS_conf) != 0)
     {
@@ -331,6 +229,7 @@ int main(int argc, char *argv[])
     {
         for (int i = 0; i < FLAGS_thread_num; ++i)
         {
+            printf("ABCDEF\n");
             if (pthread_create(&tids[i], NULL, sender, NULL) != 0)
             {
                 LOG(ERROR) << "Fail to create pthread";
@@ -342,6 +241,7 @@ int main(int argc, char *argv[])
     {
         for (int i = 0; i < FLAGS_thread_num; ++i)
         {
+            printf("ABCDSSSEF\n");
             if (bthread_start_background(&tids[i], NULL, sender, NULL) != 0)
             {
                 LOG(ERROR) << "Fail to create bthread";
@@ -349,7 +249,7 @@ int main(int argc, char *argv[])
             }
         }
     }
-
+    printf("ABCDEFCCC\n");
     while (!brpc::IsAskedToQuit())
     {
         sleep(1);
@@ -359,7 +259,7 @@ int main(int argc, char *argv[])
             << " at qps=" << g_latency_recorder.qps(1)
             << " latency=" << g_latency_recorder.latency(1);
     }
-
+    printf("ABCSSSDEF\n");
     LOG(INFO) << "Counter client is going to quit";
     for (int i = 0; i < FLAGS_thread_num; ++i)
     {

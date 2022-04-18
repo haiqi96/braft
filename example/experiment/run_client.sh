@@ -50,7 +50,7 @@ done
 
 group_prefix="replica_"
 i=0
-${VALGRIND} ./counter_client \
+echo ${VALGRIND} ./counter_client \
         --update_percentage=${FLAGS_update_percentage} \
         --bthread_concurrency=${FLAGS_bthread_concurrency} \
         --conf="${raft_peers}" \
