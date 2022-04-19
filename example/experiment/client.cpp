@@ -21,6 +21,7 @@
 #include <braft/util.h>
 #include <braft/route_table.h>
 #include "keyvalue.pb.h"
+#include <chrono>
 #include <boost/functional/hash.hpp>
 #include "OPcode.h"
 #include "echo.pb.h"
@@ -106,7 +107,8 @@ static void *dummy_sender(void *arg)
 
 static void *sender(void *arg)
 {
-
+    clock_t start, end;
+    bool leader_failure = false;
     struct client_args * cl_args = (struct client_args *)arg;
     //std::cout << cl_args->op <<" : "<<cl_args->key<<" : "<<cl_args->value<<std::endl; 
     
@@ -123,12 +125,12 @@ static void *sender(void *arg)
             // Leader is unknown in RouteTable. Ask RouteTable to refresh leader
             // by sending RPCs.
             butil::Status st = braft::rtb::refresh_leader(
-                FLAGS_group, FLAGS_timeout_ms);
+                replica_group, FLAGS_timeout_ms);
             if (!st.ok())
             {
                 // Not sure about the leader, sleep for a while and the ask again.
-                LOG(WARNING) << "Fail to refresh_leader : " << st;
-                bthread_usleep(FLAGS_timeout_ms * 1000L);
+                // LOG(WARNING) << "Fail to refresh_leader : " << st;
+                // bthread_usleep(FLAGS_timeout_ms * 1000L);
             }
             continue;
         }
@@ -168,11 +170,15 @@ static void *sender(void *arg)
 
             if (cntl.Failed())
             {
-                LOG(WARNING) << "Fail to send request to " << leader
-                             << " : " << cntl.ErrorText();
-                // Clear leadership since this RPC failed.
-                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
-                bthread_usleep(FLAGS_timeout_ms * 1000L);
+                if(!leader_failure) {
+                    leader_failure = true;
+                    start = clock();
+                }
+                // LOG(WARNING) << "Fail to send request to " << leader
+                //              << " : " << cntl.ErrorText();
+                // // Clear leadership since this RPC failed.
+                braft::rtb::update_leader(replica_group, braft::PeerId());
+                // bthread_usleep(FLAGS_timeout_ms * 1000L);
                 continue;
             }
 
@@ -184,8 +190,15 @@ static void *sender(void *arg)
                                      ? response.redirect()
                                      : "nowhere");
                 // Update route table since we have redirect information
-                braft::rtb::update_leader(FLAGS_group, response.redirect());
+                braft::rtb::update_leader(replica_group, response.redirect());
                 continue;
+            }
+
+            if(leader_failure){
+                end = clock();
+                printf ("leader re-election time: %0.8f sec\n",
+                ((float) end - start)/CLOCKS_PER_SEC);
+                leader_failure = false;
             }
 
             g_latency_recorder << cntl.latency_us();
@@ -217,7 +230,7 @@ static void *sender(void *arg)
                 LOG(WARNING) << "Fail to send request to " << leader
                              << " : " << cntl.ErrorText();
                 // Clear leadership since this RPC failed.
-                braft::rtb::update_leader(FLAGS_group, braft::PeerId());
+                braft::rtb::update_leader(replica_group, braft::PeerId());
                 bthread_usleep(FLAGS_timeout_ms * 1000L);
                 continue;
             }
@@ -230,7 +243,7 @@ static void *sender(void *arg)
                                      ? response.redirect()
                                      : "nowhere");
                 // Update route table since we have redirect information
-                braft::rtb::update_leader(FLAGS_group, response.redirect());
+                braft::rtb::update_leader(replica_group, response.redirect());
                 continue;
             }
             //std::cout << "read " << read_test_key << " : " <<  response.value() << std::endl;
@@ -354,8 +367,8 @@ int main(int argc, char *argv[])
     }
     // Start the server.
     brpc::ServerOptions options;
-    options.num_threads = 20;
-    options.max_concurrency = 800;
+    //options.num_threads = 20;
+    //options.max_concurrency = 800;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
     if (server.Start(point, &options) != 0) {
         LOG(ERROR) << "Fail to start EchoServer";
